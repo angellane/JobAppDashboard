@@ -11,7 +11,15 @@ Interactive job application tracker to manage internship applications for Summer
 - [x] Insights view (conversion rates, pipeline, weekly activity, by source/priority)
 - [x] JSON import/restore (pairs with export)
 - [x] View persistence + keyboard shortcut (N = add)
+- [x] Profile page: résumé/CV upload + server-side text extraction (PDF/DOCX/TXT),
+      structured fields, work authorization, reusable common answers
 - [ ] Optional: move persistence to a database (Neon/Postgres) for multi-device sync
+
+### Résumé handling (done — feeds Phase 2)
+- Résumé file stored client-side in IndexedDB; metadata + extracted text in localStorage.
+- `/api/parse-resume` extracts plain text server-side (pdf-parse / mammoth).
+- Heuristic "auto-fill contact info" from the extracted text (email/phone/LinkedIn/GitHub).
+  Phase 2 replaces this with LLM extraction that maps the whole CV into structured fields.
 
 ## Phase 2 — AI automated applying (planned)
 Features requested by the user, to be built after the tracker is solid:
@@ -26,6 +34,11 @@ Features requested by the user, to be built after the tracker is solid:
    career pages, job boards, etc.), finds relevant internship postings matching the
    user's criteria, adds them to the tracker, and can then automatically apply to
    the ones the user approves.
+
+3. **LLM résumé extraction.**
+   Replace the heuristic auto-fill with an LLM that reads the extracted CV text and
+   populates the full structured profile (experience, education, skills, dates), which
+   the auto-apply agent then uses to answer application questions accurately.
 
 ### Implementation notes for Phase 2 (for later)
 - Store a user "profile" (resume, common Q&A, links, work authorization, etc.).

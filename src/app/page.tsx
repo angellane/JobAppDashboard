@@ -103,27 +103,27 @@ export default function Home() {
 
   return (
     <div className="min-h-screen text-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-12">
         {/* Header */}
-        <header className="mb-6 flex animate-fade-in-up flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <header className="mb-10 flex animate-fade-in-up flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
               Internship Tracker
             </h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-base text-slate-500 dark:text-slate-400">
               Summer 2027 · applications, statuses & deadlines in one place
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => exportJson(apps)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Export
             </button>
             <button
               onClick={openAdd}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500 active:scale-95"
+              className="inline-flex items-center gap-2 rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500 active:scale-95"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path
@@ -139,13 +139,13 @@ export default function Home() {
         </header>
 
         {/* Stats */}
-        <div className="mb-6">
+        <div className="mb-8">
           <StatsBar apps={apps} />
         </div>
 
         {/* Toolbar */}
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-3">
             <div className="relative flex-1 sm:max-w-xs">
               <svg
                 width="16"
@@ -161,14 +161,14 @@ export default function Home() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search company, role, notes…"
-                className="control-hover w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
+                className="control-hover w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as Status | "all")}
-              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
+              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
             >
               <option value="all">All statuses</option>
               {STATUS_ORDER.map((s) => (
@@ -183,7 +183,7 @@ export default function Home() {
               onChange={(e) =>
                 setPriorityFilter(e.target.value as Priority | "all")
               }
-              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
+              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
             >
               <option value="all">All priorities</option>
               <option value="high">High</option>
@@ -194,7 +194,7 @@ export default function Home() {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortKey)}
-              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
+              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
             >
               <option value="recent">Sort: Recent</option>
               <option value="priority">Sort: Priority</option>
@@ -217,13 +217,13 @@ export default function Home() {
           </div>
 
           {/* View toggle */}
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             {(["board", "table"] as View[]).map((v) => (
               <button
                 key={v}
                 onClick={() => setView(v)}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium capitalize transition",
+                  "rounded-md px-4 py-2 text-sm font-medium capitalize transition",
                   view === v
                     ? "bg-blue-600 text-white shadow-sm"
                     : "text-slate-400 hover:text-slate-100",
@@ -252,7 +252,7 @@ export default function Home() {
           />
         )}
 
-        <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-600">
+        <p className="mt-12 text-center text-xs text-slate-400 dark:text-slate-600">
           Data is saved locally in your browser. Use Export to back it up.
         </p>
       </div>

@@ -41,7 +41,7 @@ interface Props {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
+  "w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 const labelCls =
   "mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400";
 
@@ -106,7 +106,7 @@ export function ApplicationForm({
         className="my-8 w-full max-w-2xl animate-scale-in rounded-2xl border border-black/5 bg-white shadow-2xl shadow-blue-950/30 dark:border-white/10 dark:bg-slate-900"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+        <div className="flex items-center justify-between border-b border-slate-100 px-7 py-5 dark:border-slate-800">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
             {editing ? "Edit application" : "Add application"}
           </h2>
@@ -126,8 +126,8 @@ export function ApplicationForm({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <form onSubmit={handleSubmit} className="px-7 py-6">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="sm:col-span-1">
               <label className={labelCls}>Company *</label>
               <input

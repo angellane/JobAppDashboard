@@ -40,7 +40,7 @@ function Card({
       onClick={() => onEdit(app)}
       style={{ animationDelay: `${Math.min(index, 10) * 45}ms` }}
       className={cn(
-        "hover-lift w-full animate-pop-in cursor-grab rounded-lg border border-black/5 bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-lg hover:shadow-blue-950/20 active:cursor-grabbing dark:border-white/10 dark:bg-slate-800",
+        "hover-lift w-full animate-pop-in cursor-grab rounded-xl border border-black/5 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-lg hover:shadow-blue-950/20 active:cursor-grabbing dark:border-white/10 dark:bg-slate-800",
         dragging && "rotate-2 opacity-60",
       )}
     >
@@ -87,7 +87,7 @@ export function KanbanBoard({ apps, onEdit, onStatusChange }: Props) {
   const [over, setOver] = useState<Status | null>(null);
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div className="flex gap-4 overflow-x-auto pb-3">
       {STATUS_ORDER.map((status) => {
         const meta = STATUS_META[status];
         const items = apps.filter((a) => a.status === status);
@@ -106,13 +106,13 @@ export function KanbanBoard({ apps, onEdit, onStatusChange }: Props) {
               setOver(null);
             }}
             className={cn(
-              "flex w-64 shrink-0 animate-fade-in flex-col rounded-xl border bg-slate-50/60 transition dark:bg-slate-900/40",
+              "flex w-72 shrink-0 animate-fade-in flex-col rounded-xl border bg-slate-50/60 transition dark:bg-slate-900/40",
               over === status
                 ? "border-blue-400 ring-2 ring-blue-400/30 dark:border-blue-500"
                 : "border-black/5 dark:border-white/10",
             )}
           >
-            <div className="flex items-center justify-between px-3 py-2.5">
+            <div className="flex items-center justify-between px-4 py-3.5">
               <div className="flex items-center gap-2">
                 <span className={cn("h-2 w-2 rounded-full", meta.accent)} />
                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -123,7 +123,7 @@ export function KanbanBoard({ apps, onEdit, onStatusChange }: Props) {
                 {items.length}
               </span>
             </div>
-            <div className="flex flex-1 flex-col gap-2 px-2 pb-2">
+            <div className="flex flex-1 flex-col gap-3 px-3 pb-3">
               {items.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-xs text-slate-400 dark:border-slate-700 dark:text-slate-600">
                   Drop here

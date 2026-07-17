@@ -55,13 +55,13 @@ export function ApplicationTable({ apps, onEdit, onStatusChange }: Props) {
       <table className="w-full min-w-205 border-collapse text-sm">
         <thead>
           <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
-            <th className="px-4 py-3 font-medium">Company / Role</th>
-            <th className="px-4 py-3 font-medium">Location</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Priority</th>
-            <th className="px-4 py-3 font-medium">Applied</th>
-            <th className="px-4 py-3 font-medium">Deadline</th>
-            <th className="px-4 py-3" />
+            <th className="px-5 py-4 font-medium">Company / Role</th>
+            <th className="px-5 py-4 font-medium">Location</th>
+            <th className="px-5 py-4 font-medium">Status</th>
+            <th className="px-5 py-4 font-medium">Priority</th>
+            <th className="px-5 py-4 font-medium">Applied</th>
+            <th className="px-5 py-4 font-medium">Deadline</th>
+            <th className="px-5 py-4" />
           </tr>
         </thead>
         <tbody>
@@ -72,7 +72,7 @@ export function ApplicationTable({ apps, onEdit, onStatusChange }: Props) {
               className="group animate-fade-in-up cursor-pointer border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
               onClick={() => onEdit(a)}
             >
-              <td className="px-4 py-3">
+              <td className="px-5 py-4">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-slate-900 dark:text-slate-100">
                     {a.company}
@@ -100,13 +100,13 @@ export function ApplicationTable({ apps, onEdit, onStatusChange }: Props) {
                 </div>
                 <div className="text-slate-500 dark:text-slate-400">{a.role}</div>
               </td>
-              <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+              <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
                 <div>{a.location || "—"}</div>
                 <div className="text-xs text-slate-400 dark:text-slate-500">
                   {WORK_MODE_LABEL[a.workMode]}
                 </div>
               </td>
-              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
                 <select
                   value={a.status}
                   onChange={(e) => onStatusChange(a.id, e.target.value as Status)}
@@ -122,7 +122,7 @@ export function ApplicationTable({ apps, onEdit, onStatusChange }: Props) {
                   ))}
                 </select>
               </td>
-              <td className="px-4 py-3">
+              <td className="px-5 py-4">
                 <span
                   className={cn(
                     "rounded-md px-2 py-0.5 text-xs font-medium",
@@ -132,17 +132,17 @@ export function ApplicationTable({ apps, onEdit, onStatusChange }: Props) {
                   {PRIORITY_META[a.priority].label}
                 </span>
               </td>
-              <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
+              <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
                 {a.dateApplied ? (
                   <span title={a.dateApplied}>{fmtDate(a.dateApplied)}</span>
                 ) : (
                   <span className="text-slate-300 dark:text-slate-600">—</span>
                 )}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-5 py-4">
                 <DeadlinePill iso={a.deadline} />
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-5 py-4 text-right">
                 <span className="text-slate-300 opacity-0 transition group-hover:opacity-100 dark:text-slate-600">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="inline">
                     <path

@@ -103,7 +103,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen text-slate-100">
-      <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-12">
+      <div className="mx-auto max-w-[1720px] px-5 py-10 sm:px-8 lg:px-12">
+        {/* Centered column for everything except the board */}
+        <div className="mx-auto max-w-7xl">
         {/* Header */}
         <header className="mb-10 flex animate-fade-in-up flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -235,6 +237,9 @@ export default function Home() {
           </div>
         </div>
 
+        </div>
+        {/* end centered column */}
+
         {/* Content */}
         {!ready ? (
           <div className="py-20 text-center text-sm text-slate-400">Loading…</div>
@@ -245,14 +250,16 @@ export default function Home() {
             onStatusChange={(id, status) => update(id, { status })}
           />
         ) : (
-          <ApplicationTable
-            apps={filtered}
-            onEdit={openEdit}
-            onStatusChange={(id, status) => update(id, { status })}
-          />
+          <div className="mx-auto max-w-7xl">
+            <ApplicationTable
+              apps={filtered}
+              onEdit={openEdit}
+              onStatusChange={(id, status) => update(id, { status })}
+            />
+          </div>
         )}
 
-        <p className="mt-12 text-center text-xs text-slate-400 dark:text-slate-600">
+        <p className="mx-auto mt-12 max-w-7xl text-center text-xs text-slate-400 dark:text-slate-600">
           Data is saved locally in your browser. Use Export to back it up.
         </p>
       </div>

@@ -87,7 +87,7 @@ export function KanbanBoard({ apps, onEdit, onStatusChange }: Props) {
   const [over, setOver] = useState<Status | null>(null);
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-3">
+    <div className="grid grid-cols-2 gap-3 pb-3 sm:grid-cols-3 xl:grid-cols-6">
       {STATUS_ORDER.map((status) => {
         const meta = STATUS_META[status];
         const items = apps.filter((a) => a.status === status);
@@ -106,7 +106,7 @@ export function KanbanBoard({ apps, onEdit, onStatusChange }: Props) {
               setOver(null);
             }}
             className={cn(
-              "flex w-72 shrink-0 animate-fade-in flex-col rounded-xl border bg-slate-50/60 transition dark:bg-slate-900/40",
+              "flex min-w-0 animate-fade-in flex-col rounded-xl border bg-slate-50/60 transition dark:bg-slate-900/40",
               over === status
                 ? "border-blue-400 ring-2 ring-blue-400/30 dark:border-blue-500"
                 : "border-black/5 dark:border-white/10",

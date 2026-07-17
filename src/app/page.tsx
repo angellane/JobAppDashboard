@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   PRIORITY_META,
   STATUS_META,
@@ -10,14 +10,19 @@ import {
   type Status,
 } from "@/lib/types";
 import { useApplications, type NewApplication } from "@/lib/store";
+import { computeReminders } from "@/lib/insights";
 import { cn } from "@/lib/utils";
 import { StatsBar } from "@/components/StatsBar";
 import { ApplicationTable } from "@/components/ApplicationTable";
 import { KanbanBoard } from "@/components/KanbanBoard";
+import { InsightsView } from "@/components/InsightsView";
+import { RemindersPanel } from "@/components/RemindersPanel";
 import { ApplicationForm } from "@/components/ApplicationForm";
 
-type View = "board" | "table";
+type View = "board" | "table" | "insights";
 type SortKey = "recent" | "priority" | "deadline" | "company";
+
+const VIEW_KEY = "jobapp.view.v1";
 
 function exportJson(apps: Application[]) {
   const blob = new Blob([JSON.stringify(apps, null, 2)], {
@@ -32,7 +37,7 @@ function exportJson(apps: Application[]) {
 }
 
 export default function Home() {
-  const { apps, ready, add, update, remove } = useApplications();
+  const { apps, ready, add, update, remove, replaceAll } = useApplications();
 
   const [view, setView] = useState<View>("board");
   const [query, setQuery] = useState("");
@@ -42,6 +47,31 @@ export default function Home() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Application | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const reminders = useMemo(() => computeReminders(apps), [apps]);
+
+  // Restore the last-used view.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(VIEW_KEY);
+      if (saved === "board" || saved === "table" || saved === "insights") {
+        setView(saved);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function changeView(v: View) {
+    setView(v);
+    try {
+      window.localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -86,6 +116,10 @@ export default function Home() {
     setEditing(app);
     setFormOpen(true);
   }
+  function openById(id: string) {
+    const app = apps.find((a) => a.id === id);
+    if (app) openEdit(app);
+  }
   function handleSubmit(data: NewApplication) {
     if (editing) update(editing.id, data);
     else add(data);
@@ -97,6 +131,54 @@ export default function Home() {
     setFormOpen(false);
     setEditing(null);
   }
+
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-importing the same file later
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!Array.isArray(parsed)) throw new Error("not an array");
+        const valid = parsed.filter(
+          (a) => a && typeof a.id === "string" && typeof a.company === "string",
+        ) as Application[];
+        if (valid.length === 0) throw new Error("no valid records");
+        const count = apps.length;
+        const proceed =
+          count === 0 ||
+          window.confirm(
+            `Replace your current ${count} application${count === 1 ? "" : "s"} with ${valid.length} imported record${valid.length === 1 ? "" : "s"}? (Export first if you want a backup.)`,
+          );
+        if (proceed) replaceAll(valid);
+      } catch {
+        window.alert("Couldn't import that file — expected a JSON export.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // Keyboard shortcut: "n" opens a new application (unless typing in a field).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (formOpen) return;
+      const t = e.target as HTMLElement | null;
+      const typing =
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable);
+      if (typing) return;
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        openAdd();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [formOpen]);
 
   const activeFilters =
     statusFilter !== "all" || priorityFilter !== "all" || query.trim() !== "";
@@ -117,6 +199,19 @@ export default function Home() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImport}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Import
+            </button>
             <button
               onClick={() => exportJson(apps)}
               className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -141,13 +236,26 @@ export default function Home() {
         </header>
 
         {/* Stats */}
-        <div className="mb-8">
+        <div className="mb-6">
           <StatsBar apps={apps} />
         </div>
 
+        {/* Needs attention */}
+        {ready && (
+          <div className="mb-8">
+            <RemindersPanel reminders={reminders} onSelect={openById} />
+          </div>
+        )}
+
         {/* Toolbar */}
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-1 flex-wrap items-center gap-3">
+          <div
+            className={cn(
+              "flex flex-1 flex-wrap items-center gap-3",
+              view === "insights" && "pointer-events-none opacity-0",
+            )}
+            aria-hidden={view === "insights"}
+          >
             <div className="relative flex-1 sm:max-w-xs">
               <svg
                 width="16"
@@ -219,11 +327,11 @@ export default function Home() {
           </div>
 
           {/* View toggle */}
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            {(["board", "table"] as View[]).map((v) => (
+          <div className="inline-flex shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            {(["board", "table", "insights"] as View[]).map((v) => (
               <button
                 key={v}
-                onClick={() => setView(v)}
+                onClick={() => changeView(v)}
                 className={cn(
                   "rounded-md px-4 py-2 text-sm font-medium capitalize transition",
                   view === v
@@ -243,6 +351,8 @@ export default function Home() {
         {/* Content */}
         {!ready ? (
           <div className="py-20 text-center text-sm text-slate-400">Loading…</div>
+        ) : view === "insights" ? (
+          <InsightsView apps={apps} />
         ) : view === "board" ? (
           <KanbanBoard
             apps={filtered}
@@ -260,7 +370,11 @@ export default function Home() {
         )}
 
         <p className="mx-auto mt-12 max-w-7xl text-center text-xs text-slate-400 dark:text-slate-600">
-          Data is saved locally in your browser. Use Export to back it up.
+          Data is saved locally in your browser · press{" "}
+          <kbd className="rounded border border-slate-300 px-1 font-mono dark:border-slate-700">
+            N
+          </kbd>{" "}
+          to add · use Export to back it up.
         </p>
       </div>
 

@@ -6,7 +6,11 @@ Interactive job application tracker to manage internship applications for Summer
 - [x] Application list/table with status tracking
 - [x] Add / edit / delete applications
 - [x] Dashboard stats + search/filter
-- [x] Kanban pipeline board
+- [x] Kanban pipeline board (drag-and-drop)
+- [x] "Needs attention" reminders (deadlines, stale applications, high-priority saved roles)
+- [x] Insights view (conversion rates, pipeline, weekly activity, by source/priority)
+- [x] JSON import/restore (pairs with export)
+- [x] View persistence + keyboard shortcut (N = add)
 - [ ] Optional: move persistence to a database (Neon/Postgres) for multi-device sync
 
 ## Phase 2 — AI automated applying (planned)

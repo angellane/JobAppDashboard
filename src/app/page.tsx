@@ -102,7 +102,7 @@ export default function Home() {
     statusFilter !== "all" || priorityFilter !== "all" || query.trim() !== "";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50">
+    <div className="min-h-screen text-slate-100">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {/* Header */}
         <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -123,7 +123,7 @@ export default function Home() {
             </button>
             <button
               onClick={openAdd}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path
@@ -225,8 +225,8 @@ export default function Home() {
                 className={cn(
                   "rounded-md px-3 py-1.5 text-sm font-medium capitalize transition",
                   view === v
-                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-slate-100",
                 )}
               >
                 {v}

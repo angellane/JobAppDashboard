@@ -263,7 +263,7 @@ export function ApplicationForm({
             <div className="sm:col-span-2">
               <label className={labelCls}>Notes</label>
               <textarea
-                className={inputCls + " min-h-[80px] resize-y"}
+                className={inputCls + " min-h-20 resize-y"}
                 value={form.notes}
                 onChange={(e) => set("notes", e.target.value)}
                 placeholder="Interview prep, referral details, next steps…"
@@ -293,7 +293,7 @@ export function ApplicationForm({
               </button>
               <button
                 type="submit"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500"
+                className="rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500"
               >
                 {editing ? "Save changes" : "Add application"}
               </button>

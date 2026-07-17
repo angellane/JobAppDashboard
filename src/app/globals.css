@@ -50,11 +50,25 @@
 .hover-lift {
   transition:
     transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.18s ease;
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease;
   will-change: transform;
 }
 .hover-lift:hover {
   transform: translateY(-2px);
+}
+
+/* Subtle raise for form controls (inputs / selects). */
+.control-hover {
+  transition:
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease;
+}
+.control-hover:hover {
+  transform: translateY(-1px);
 }
 
 /* Respect users who prefer reduced motion. */

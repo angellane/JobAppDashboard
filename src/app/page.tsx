@@ -161,14 +161,14 @@ export default function Home() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search company, role, notes…"
-                className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900"
+                className="control-hover w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as Status | "all")}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900"
+              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
             >
               <option value="all">All statuses</option>
               {STATUS_ORDER.map((s) => (
@@ -183,7 +183,7 @@ export default function Home() {
               onChange={(e) =>
                 setPriorityFilter(e.target.value as Priority | "all")
               }
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900"
+              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
             >
               <option value="all">All priorities</option>
               <option value="high">High</option>
@@ -194,7 +194,7 @@ export default function Home() {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortKey)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900"
+              className="control-hover cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none hover:border-blue-400/60 hover:shadow-md hover:shadow-blue-500/10 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-500/60"
             >
               <option value="recent">Sort: Recent</option>
               <option value="priority">Sort: Priority</option>

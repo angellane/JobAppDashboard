@@ -36,7 +36,7 @@ export function StatsBar({ apps }: { apps: Application[] }) {
         <div
           key={c.label}
           style={{ animationDelay: `${i * 60}ms` }}
-          className="hover-lift animate-fade-in-up rounded-xl border border-black/5 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900"
+          className="hover-lift animate-fade-in-up rounded-xl border border-black/5 bg-white p-4 shadow-sm hover:border-blue-400/50 hover:shadow-lg hover:shadow-blue-500/10 dark:border-white/10 dark:bg-slate-900 dark:hover:border-blue-500/50"
         >
           <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             {c.label}

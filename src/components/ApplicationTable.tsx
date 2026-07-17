@@ -52,7 +52,7 @@ export function ApplicationTable({ apps, onEdit, onStatusChange }: Props) {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-black/5 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-      <table className="w-full min-w-[820px] border-collapse text-sm">
+      <table className="w-full min-w-205 border-collapse text-sm">
         <thead>
           <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
             <th className="px-4 py-3 font-medium">Company / Role</th>
@@ -65,10 +65,11 @@ export function ApplicationTable({ apps, onEdit, onStatusChange }: Props) {
           </tr>
         </thead>
         <tbody>
-          {apps.map((a) => (
+          {apps.map((a, i) => (
             <tr
               key={a.id}
-              className="group cursor-pointer border-b border-slate-50 transition last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
+              style={{ animationDelay: `${Math.min(i, 12) * 35}ms` }}
+              className="group animate-fade-in-up cursor-pointer border-b border-slate-50 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800/60 dark:hover:bg-slate-800/40"
               onClick={() => onEdit(a)}
             >
               <td className="px-4 py-3">

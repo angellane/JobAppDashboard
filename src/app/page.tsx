@@ -105,7 +105,7 @@ export default function Home() {
     <div className="min-h-screen text-slate-100">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {/* Header */}
-        <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <header className="mb-6 flex animate-fade-in-up flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
               Internship Tracker
@@ -117,13 +117,13 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => exportJson(apps)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               Export
             </button>
             <button
               onClick={openAdd}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500 active:scale-95"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path

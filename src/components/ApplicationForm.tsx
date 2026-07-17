@@ -99,11 +99,11 @@ export function ApplicationForm({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex animate-fade-in items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm"
       onMouseDown={onClose}
     >
       <div
-        className="my-8 w-full max-w-2xl rounded-2xl border border-black/5 bg-white shadow-xl dark:border-white/10 dark:bg-slate-900"
+        className="my-8 w-full max-w-2xl animate-scale-in rounded-2xl border border-black/5 bg-white shadow-2xl shadow-blue-950/30 dark:border-white/10 dark:bg-slate-900"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
@@ -293,7 +293,7 @@ export function ApplicationForm({
               </button>
               <button
                 type="submit"
-                className="rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500"
+                className="rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500 active:scale-95"
               >
                 {editing ? "Save changes" : "Add application"}
               </button>

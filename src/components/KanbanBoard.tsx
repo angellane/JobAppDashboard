@@ -20,20 +20,29 @@ interface Props {
 function Card({
   app,
   onEdit,
+  index,
 }: {
   app: Application;
   onEdit: (a: Application) => void;
+  index: number;
 }) {
   const dl = daysUntil(app.deadline);
+  const [dragging, setDragging] = useState(false);
   return (
     <button
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", app.id);
         e.dataTransfer.effectAllowed = "move";
+        setDragging(true);
       }}
+      onDragEnd={() => setDragging(false)}
       onClick={() => onEdit(app)}
-      className="w-full cursor-grab rounded-lg border border-black/5 bg-white p-3 text-left shadow-sm transition hover:shadow-md active:cursor-grabbing dark:border-white/10 dark:bg-slate-800"
+      style={{ animationDelay: `${Math.min(index, 10) * 45}ms` }}
+      className={cn(
+        "hover-lift w-full animate-pop-in cursor-grab rounded-lg border border-black/5 bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-lg hover:shadow-blue-950/20 active:cursor-grabbing dark:border-white/10 dark:bg-slate-800",
+        dragging && "rotate-2 opacity-60",
+      )}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -97,7 +106,7 @@ export function KanbanBoard({ apps, onEdit, onStatusChange }: Props) {
               setOver(null);
             }}
             className={cn(
-              "flex w-64 shrink-0 flex-col rounded-xl border bg-slate-50/60 transition dark:bg-slate-900/40",
+              "flex w-64 shrink-0 animate-fade-in flex-col rounded-xl border bg-slate-50/60 transition dark:bg-slate-900/40",
               over === status
                 ? "border-blue-400 ring-2 ring-blue-400/30 dark:border-blue-500"
                 : "border-black/5 dark:border-white/10",
@@ -120,8 +129,8 @@ export function KanbanBoard({ apps, onEdit, onStatusChange }: Props) {
                   Drop here
                 </div>
               ) : (
-                items.map((app) => (
-                  <Card key={app.id} app={app} onEdit={onEdit} />
+                items.map((app, i) => (
+                  <Card key={app.id} app={app} onEdit={onEdit} index={i} />
                 ))
               )}
             </div>

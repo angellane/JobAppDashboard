@@ -32,10 +32,11 @@ export function StatsBar({ apps }: { apps: Application[] }) {
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      {cards.map((c) => (
+      {cards.map((c, i) => (
         <div
           key={c.label}
-          className="rounded-xl border border-black/5 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900"
+          style={{ animationDelay: `${i * 60}ms` }}
+          className="hover-lift animate-fade-in-up rounded-xl border border-black/5 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900"
         >
           <div className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
             {c.label}

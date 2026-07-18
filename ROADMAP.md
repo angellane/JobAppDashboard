@@ -53,3 +53,7 @@ Features requested by the user, to be built after the tracker is solid:
 - Use web search / crawling + an LLM to parse postings into the Application schema.
 - Add a human-in-the-loop approval step before any submission.
 - Respect site ToS and rate limits; keep an audit log of automated actions.
+
+
+Future
+- AI gateway payments via 3rd party subscription instead of usage billing?

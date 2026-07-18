@@ -23,6 +23,7 @@ export default function DiscoverPage() {
 
   const [role, setRole] = useState("");
   const [location, setLocation] = useState("");
+  const [keywords, setKeywords] = useState("");
   const [workMode, setWorkMode] = useState<WorkMode | "any">("any");
   const [count, setCount] = useState(8);
 
@@ -41,6 +42,7 @@ export default function DiscoverPage() {
         const c = JSON.parse(raw);
         setRole(c.role ?? "");
         setLocation(c.location ?? "");
+        setKeywords(c.keywords ?? "");
         setWorkMode(c.workMode ?? "any");
         setCount(c.count ?? 8);
       }
@@ -59,7 +61,7 @@ export default function DiscoverPage() {
     try {
       window.localStorage.setItem(
         CRITERIA_KEY,
-        JSON.stringify({ role, location, workMode, count }),
+        JSON.stringify({ role, location, keywords, workMode, count }),
       );
     } catch {
       /* ignore */
@@ -79,7 +81,7 @@ export default function DiscoverPage() {
       const res = await fetch("/api/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, location, workMode, count }),
+        body: JSON.stringify({ role, location, keywords, workMode, count }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -173,6 +175,18 @@ export default function DiscoverPage() {
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="Seattle, WA · Remote · UK"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>
+                Keywords / timeframe{" "}
+                <span className="font-normal text-slate-400">(optional)</span>
+              </label>
+              <input
+                className={inputCls}
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                placeholder="e.g. Summer 2027 · new grad · fintech"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

@@ -51,20 +51,30 @@ function normalize(raw: RawPosting[]): DiscoveredPosting[] {
 function structurePrompt(
   role: string,
   location: string,
+  keywords: string,
   count: number,
   findings: string,
   sources: string[],
 ) {
+  const today = new Date().toISOString().slice(0, 10);
+  const term = keywords.trim();
   return (
-    `From the internship search findings below, extract up to ${count} distinct ` +
-    `real postings for "${role}"${location ? ` in ${location}` : ""}.\n\n` +
+    `Today's date is ${today}. Extract up to ${count} distinct, real, currently-open ` +
+    `internship postings for "${role}"${location ? ` in ${location}` : ""}` +
+    `${term ? ` for: ${term}` : ""} from the search findings below.\n\n` +
     `Rules:\n` +
     `- Use ONLY information present in the findings. Do not invent postings or URLs.\n` +
     `- Each "url" must be a real link that appears in the findings or source list.\n` +
+    `- The role must match "${role}". Skip unrelated roles.\n` +
+    `- Include ONLY genuine job postings. Skip: aggregator/list/search pages ("jobs in X",\n` +
+    `  Glassdoor/Indeed/LinkedIn search result pages), degree programs, bootcamps, courses,\n` +
+    `  and full-time (non-internship) roles.\n` +
+    `- Skip postings that are clearly outdated or from a past hiring cycle. Prefer postings\n` +
+    `  that are current as of ${today}` +
+    `${term ? ` and match "${term}"` : ""}.\n` +
+    `- Prefer direct company or applicant-tracking (Greenhouse, Lever, Ashby, Workday) links.\n` +
     `- If a field is unknown, use an empty string (or "unknown" for workMode).\n` +
-    `- Deduplicate by company + role.\n` +
-    `- Skip anything that is clearly not an internship for this role (e.g. list pages,\n` +
-    `  "jobs in X" aggregators, or full-time roles).\n\n` +
+    `- Deduplicate by company + role. It is fine to return fewer than ${count} if few qualify.\n\n` +
     `FINDINGS:\n${findings}\n\n` +
     `SOURCE URLS:\n${sources.join("\n") || "(none reported)"}`
   );
@@ -86,6 +96,7 @@ async function structure(
   model: LanguageModel,
   role: string,
   location: string,
+  keywords: string,
   count: number,
   findings: string,
   sources: string[],
@@ -93,7 +104,7 @@ async function structure(
   const { output } = await generateText({
     model,
     output: Output.object({ schema: postingSchema }),
-    prompt: structurePrompt(role, location, count, findings, sources),
+    prompt: structurePrompt(role, location, keywords, count, findings, sources),
   });
   return normalize(output?.postings ?? []);
 }
@@ -102,11 +113,19 @@ async function structure(
 async function discoverWithTavily(
   role: string,
   location: string,
+  keywords: string,
   modeText: string,
   count: number,
   structureModel: LanguageModel,
 ) {
-  const query = [role, "internship", location, /remote/i.test(modeText) ? "remote" : ""]
+  const query = [
+    role,
+    "internship",
+    keywords,
+    location,
+    /remote/i.test(modeText) ? "remote" : "",
+    "apply",
+  ]
     .filter(Boolean)
     .join(" ")
     .trim();
@@ -119,8 +138,9 @@ async function discoverWithTavily(
     },
     body: JSON.stringify({
       query,
-      search_depth: "basic",
-      max_results: Math.min(count + 3, 12),
+      // Deeper search + more candidates so the model has real postings to pick from.
+      search_depth: "advanced",
+      max_results: Math.min(count * 3, 20),
     }),
   });
 
@@ -148,6 +168,7 @@ async function discoverWithTavily(
     structureModel,
     role,
     location,
+    keywords,
     count,
     findings,
     sources,
@@ -155,28 +176,43 @@ async function discoverWithTavily(
   return { postings, sources };
 }
 
+function searchPrompt(
+  role: string,
+  where: string,
+  keywords: string,
+  modeText: string,
+  count: number,
+) {
+  const term = keywords.trim();
+  return (
+    `Search the web for currently-open "${role}" internship positions in ${where}` +
+    `${term ? ` (${term})` : ""}.${modeText} Find at least ${count} distinct, real, ` +
+    `currently-open postings with company, exact role title, location, work mode, the ` +
+    `direct application URL, any listed pay, and the source site. Only include real, ` +
+    `current postings you actually found — not old or past-cycle listings.`
+  );
+}
+
 /** Gemini with Google Search grounding (requires billing enabled on the project). */
 async function discoverWithGemini(
   role: string,
   where: string,
   location: string,
+  keywords: string,
   modeText: string,
   count: number,
 ) {
   const search = await generateText({
     model: google(GEMINI_MODEL),
     tools: { google_search: google.tools.googleSearch({}) },
-    prompt:
-      `Search the web for currently-open "${role}" internship positions in ${where}.` +
-      `${modeText} Find at least ${count} distinct, real, currently-open postings with ` +
-      `company, exact role title, location, work mode, the direct application URL, any ` +
-      `listed pay, and the source site. Only include real postings you actually found.`,
+    prompt: searchPrompt(role, where, keywords, modeText, count),
   });
   const sources = dedupeSources(search.sources);
   const postings = await structure(
     google(GEMINI_MODEL),
     role,
     location,
+    keywords,
     count,
     search.text,
     sources,
@@ -189,22 +225,20 @@ async function discoverWithGateway(
   role: string,
   where: string,
   location: string,
+  keywords: string,
   modeText: string,
   count: number,
 ) {
   const search = await generateText({
     model: GATEWAY_SEARCH_MODEL,
-    prompt:
-      `Search the web for currently-open "${role}" internship positions in ${where}.` +
-      `${modeText} Find at least ${count} distinct, real, currently-open postings with ` +
-      `company, exact role title, location, work mode, the direct application URL, any ` +
-      `listed pay, and the source site. Only include real postings you actually found.`,
+    prompt: searchPrompt(role, where, keywords, modeText, count),
   });
   const sources = dedupeSources(search.sources);
   const postings = await structure(
     GATEWAY_STRUCTURE_MODEL,
     role,
     location,
+    keywords,
     count,
     search.text,
     sources,
@@ -238,12 +272,14 @@ export async function POST(req: Request) {
 
   let role = "";
   let location = "";
+  let keywords = "";
   let workMode = "any";
   let count = 8;
   try {
     const body = await req.json();
     role = String(body.role ?? "").trim();
     location = String(body.location ?? "").trim();
+    keywords = String(body.keywords ?? "").trim().slice(0, 120);
     workMode = ["onsite", "remote", "hybrid"].includes(body.workMode)
       ? body.workMode
       : "any";
@@ -268,15 +304,30 @@ export async function POST(req: Request) {
       result = await discoverWithTavily(
         role,
         location,
+        keywords,
         modeText,
         count,
         tavilyStructureModel,
       );
     } else if (hasGateway) {
-      result = await discoverWithGateway(role, where, location, modeText, count);
+      result = await discoverWithGateway(
+        role,
+        where,
+        location,
+        keywords,
+        modeText,
+        count,
+      );
     } else {
       // opt-in grounding (requires billing on the Google project)
-      result = await discoverWithGemini(role, where, location, modeText, count);
+      result = await discoverWithGemini(
+        role,
+        where,
+        location,
+        keywords,
+        modeText,
+        count,
+      );
     }
     return NextResponse.json(result);
   } catch (err) {

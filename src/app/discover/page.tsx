@@ -248,7 +248,7 @@ export default function DiscoverPage() {
             {setupNeeded && (
               <div className="mt-2 text-slate-500 dark:text-slate-400">
                 <p>
-                  To enable AI discovery, add a free Google Gemini key to{" "}
+                  For free AI discovery, add two free keys to{" "}
                   <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
                     .env.local
                   </code>
@@ -256,12 +256,10 @@ export default function DiscoverPage() {
                 </p>
                 <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800">
 {`# .env.local
-GOOGLE_GENERATIVE_AI_API_KEY=your_key_here`}
+TAVILY_API_KEY=your_key            # app.tavily.com
+GOOGLE_GENERATIVE_AI_API_KEY=your_key   # aistudio.google.com/apikey`}
                 </pre>
-                <p className="mt-2">
-                  Get a free key at aistudio.google.com/apikey, then restart the
-                  dev server.
-                </p>
+                <p className="mt-2">Both are free, then restart the dev server.</p>
               </div>
             )}
           </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateText, Output } from "ai";
+import { generateText, Output, type LanguageModel } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import type { DiscoveredPosting } from "@/lib/discovery";
@@ -8,9 +8,9 @@ import type { WorkMode } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-// Gemini (free AI Studio tier) with Google Search grounding is preferred.
-const GEMINI_MODEL = "gemini-2.5-flash";
-// Fallback: Vercel AI Gateway (usage-billed).
+// Free structuring model (alias stays current; works on new AI Studio keys).
+const GEMINI_MODEL = "gemini-flash-latest";
+// Gateway fallback (usage-billed).
 const GATEWAY_SEARCH_MODEL = "perplexity/sonar-pro";
 const GATEWAY_STRUCTURE_MODEL = "anthropic/claude-sonnet-5";
 
@@ -47,18 +47,6 @@ function normalize(raw: RawPosting[]): DiscoveredPosting[] {
   }));
 }
 
-function searchPrompt(role: string, where: string, modeText: string, count: number) {
-  return (
-    `Search the web for currently-open "${role}" internship positions in ${where}.` +
-    `${modeText} Find at least ${count} distinct, real, currently-open postings from ` +
-    `company career pages and reputable job boards (LinkedIn, Indeed, Handshake, ` +
-    `Greenhouse, Lever, etc.). For each posting, report: company, exact role title, ` +
-    `location, work mode (onsite/remote/hybrid), the direct application/posting URL, ` +
-    `any listed pay or stipend, and the source site. Only include real postings you ` +
-    `actually found, and prefer official application links.`
-  );
-}
-
 function structurePrompt(
   role: string,
   location: string,
@@ -74,7 +62,8 @@ function structurePrompt(
     `- Each "url" must be a real link that appears in the findings or source list.\n` +
     `- If a field is unknown, use an empty string (or "unknown" for workMode).\n` +
     `- Deduplicate by company + role.\n` +
-    `- Skip anything that is clearly not an internship for this role.\n\n` +
+    `- Skip anything that is clearly not an internship for this role (e.g. list pages,\n` +
+    `  "jobs in X" aggregators, or full-time roles).\n\n` +
     `FINDINGS:\n${findings}\n\n` +
     `SOURCE URLS:\n${sources.join("\n") || "(none reported)"}`
   );
@@ -92,6 +81,77 @@ function dedupeSources(sources: unknown): string[] {
   return Array.from(new Set(urls));
 }
 
+async function structure(
+  model: LanguageModel,
+  role: string,
+  location: string,
+  count: number,
+  findings: string,
+  sources: string[],
+) {
+  const { output } = await generateText({
+    model,
+    output: Output.object({ schema: postingSchema }),
+    prompt: structurePrompt(role, location, count, findings, sources),
+  });
+  return normalize(output?.postings ?? []);
+}
+
+/** Free web search via Tavily -> Gemini (free) structures the results. */
+async function discoverWithTavily(
+  role: string,
+  location: string,
+  modeText: string,
+  count: number,
+  structureModel: LanguageModel,
+) {
+  const query = [role, "internship", location, /remote/i.test(modeText) ? "remote" : ""]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  const res = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+    },
+    body: JSON.stringify({
+      query,
+      search_depth: "basic",
+      max_results: Math.min(count * 2, 20),
+    }),
+  });
+
+  if (!res.ok) {
+    const status = res.status;
+    if (status === 401) throw new Error("Tavily: invalid api key");
+    if (status === 429 || status === 432)
+      throw new Error("Tavily: quota exceeded");
+    throw new Error(`Tavily search failed (${status})`);
+  }
+
+  const data = (await res.json()) as {
+    results?: { title?: string; url?: string; content?: string }[];
+  };
+  const results = data.results ?? [];
+  const findings = results
+    .map((r) => `${r.title ?? ""}\n${r.url ?? ""}\n${r.content ?? ""}`)
+    .join("\n\n");
+  const sources = results.map((r) => r.url).filter((u): u is string => Boolean(u));
+
+  const postings = await structure(
+    structureModel,
+    role,
+    location,
+    count,
+    findings,
+    sources,
+  );
+  return { postings, sources };
+}
+
+/** Gemini with Google Search grounding (requires billing enabled on the project). */
 async function discoverWithGemini(
   role: string,
   where: string,
@@ -99,24 +159,28 @@ async function discoverWithGemini(
   modeText: string,
   count: number,
 ) {
-  // 1) Search the live web via Google Search grounding.
   const search = await generateText({
     model: google(GEMINI_MODEL),
     tools: { google_search: google.tools.googleSearch({}) },
-    prompt: searchPrompt(role, where, modeText, count),
+    prompt:
+      `Search the web for currently-open "${role}" internship positions in ${where}.` +
+      `${modeText} Find at least ${count} distinct, real, currently-open postings with ` +
+      `company, exact role title, location, work mode, the direct application URL, any ` +
+      `listed pay, and the source site. Only include real postings you actually found.`,
   });
   const sources = dedupeSources(search.sources);
-
-  // 2) Structure the findings (separate call — grounding + schema don't mix).
-  const { output } = await generateText({
-    model: google(GEMINI_MODEL),
-    output: Output.object({ schema: postingSchema }),
-    prompt: structurePrompt(role, location, count, search.text, sources),
-  });
-
-  return { postings: normalize(output?.postings ?? []), sources };
+  const postings = await structure(
+    google(GEMINI_MODEL),
+    role,
+    location,
+    count,
+    search.text,
+    sources,
+  );
+  return { postings, sources };
 }
 
+/** Vercel AI Gateway: Perplexity searches, Claude structures (usage-billed). */
 async function discoverWithGateway(
   role: string,
   where: string,
@@ -126,28 +190,41 @@ async function discoverWithGateway(
 ) {
   const search = await generateText({
     model: GATEWAY_SEARCH_MODEL,
-    prompt: searchPrompt(role, where, modeText, count),
+    prompt:
+      `Search the web for currently-open "${role}" internship positions in ${where}.` +
+      `${modeText} Find at least ${count} distinct, real, currently-open postings with ` +
+      `company, exact role title, location, work mode, the direct application URL, any ` +
+      `listed pay, and the source site. Only include real postings you actually found.`,
   });
   const sources = dedupeSources(search.sources);
-
-  const { output } = await generateText({
-    model: GATEWAY_STRUCTURE_MODEL,
-    output: Output.object({ schema: postingSchema }),
-    prompt: structurePrompt(role, location, count, search.text, sources),
-  });
-
-  return { postings: normalize(output?.postings ?? []), sources };
+  const postings = await structure(
+    GATEWAY_STRUCTURE_MODEL,
+    role,
+    location,
+    count,
+    search.text,
+    sources,
+  );
+  return { postings, sources };
 }
 
 export async function POST(req: Request) {
-  const useGemini = Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
-  const useGateway = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL);
+  const hasGoogle = Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+  const hasTavily = Boolean(process.env.TAVILY_API_KEY);
+  const hasGateway = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL);
 
-  if (!useGemini && !useGateway) {
+  // Which structuring model can we use for the Tavily path?
+  const tavilyStructureModel: LanguageModel | null = hasGoogle
+    ? google(GEMINI_MODEL)
+    : hasGateway
+      ? GATEWAY_STRUCTURE_MODEL
+      : null;
+
+  if (!(hasTavily && tavilyStructureModel) && !hasGoogle && !hasGateway) {
     return NextResponse.json(
       {
         error:
-          "AI is not configured. Add a GOOGLE_GENERATIVE_AI_API_KEY (free) to .env.local — see README.",
+          "AI is not configured. Add a free GOOGLE_GENERATIVE_AI_API_KEY and TAVILY_API_KEY to .env.local — see README.",
         setup: true,
       },
       { status: 501 },
@@ -181,17 +258,32 @@ export async function POST(req: Request) {
   const modeText = workMode === "any" ? "" : ` Prefer ${workMode} positions.`;
 
   try {
-    const result = useGemini
-      ? await discoverWithGemini(role, where, location, modeText, count)
-      : await discoverWithGateway(role, where, location, modeText, count);
+    let result;
+    if (hasTavily && tavilyStructureModel) {
+      result = await discoverWithTavily(
+        role,
+        location,
+        modeText,
+        count,
+        tavilyStructureModel,
+      );
+    } else if (hasGoogle) {
+      result = await discoverWithGemini(role, where, location, modeText, count);
+    } else {
+      result = await discoverWithGateway(role, where, location, modeText, count);
+    }
     return NextResponse.json(result);
   } catch (err) {
     console.error("discover failed:", err);
-    const message =
-      err instanceof Error &&
-      /api key|unauthor|forbidden|credit|quota|permission/i.test(err.message)
-        ? "AI request was rejected — check your API key, quota, and available credit."
-        : "The discovery agent hit an error. Please try again.";
+    const raw = err instanceof Error ? err.message : "";
+    let message = "The discovery agent hit an error. Please try again.";
+    if (/tavily: invalid/i.test(raw))
+      message = "Your Tavily API key looks invalid — check TAVILY_API_KEY.";
+    else if (/tavily: quota/i.test(raw))
+      message = "Tavily monthly search quota reached. It resets next month.";
+    else if (/api key|unauthor|forbidden|credit|quota|permission|billing/i.test(raw))
+      message =
+        "AI request was rejected — check your API keys, quota, and (for grounding) billing.";
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

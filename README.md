@@ -35,25 +35,28 @@ Add an API key to `.env.local`:
 cp .env.example .env.local   # then add ONE key
 ```
 
-**Option A — Google Gemini (recommended, free).** A free AI Studio key with
-generous limits; uses Google Search grounding for live web search:
+**Option A — fully free (recommended).** Web search via **Tavily** + structuring
+via **Google Gemini**. Both keys are free and need no credit card:
 
 ```bash
 # .env.local
-GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
+TAVILY_API_KEY=your_tavily_key            # https://app.tavily.com (1,000 searches/mo)
+GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_key   # https://aistudio.google.com/apikey
 ```
 
-Get one at **https://aistudio.google.com/apikey**.
-
-**Option B — Vercel AI Gateway (fallback, usage-billed).** Uses Perplexity Sonar
-+ Claude; only used if the Gemini key is not set:
+**Option B — Vercel AI Gateway (fallback, usage-billed).** Perplexity Sonar +
+Claude; used only if the free keys above aren't set:
 
 ```bash
 # .env.local
 AI_GATEWAY_API_KEY=your_key_here
 ```
 
-Restart `npm run dev` after adding a key.
+Restart `npm run dev` after adding keys.
+
+> Note: a Gemini key **alone** can search the web only if you enable billing on
+> the Google Cloud project — Google Search grounding is not on the pure free tier.
+> That's why the free path pairs Gemini with Tavily for search.
 
 ## Scripts
 

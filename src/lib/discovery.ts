@@ -15,8 +15,9 @@ export interface DiscoveredPosting {
 }
 
 export interface DiscoverRequest {
-  role: string;
+  roles: string[];
   location: string;
+  keywords: string[];
   workMode: WorkMode | "any";
   count: number;
 }

@@ -10,6 +10,7 @@ import {
 } from "@/lib/discovery";
 import { WORK_MODE_LABEL, type WorkMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { TagInput } from "@/components/TagInput";
 
 const CRITERIA_KEY = "jobapp.discover.v1";
 
@@ -21,9 +22,9 @@ const labelCls =
 export default function DiscoverPage() {
   const { apps, add } = useApplications();
 
-  const [role, setRole] = useState("");
+  const [roles, setRoles] = useState<string[]>([]);
   const [location, setLocation] = useState("");
-  const [keywords, setKeywords] = useState("");
+  const [keywords, setKeywords] = useState<string[]>([]);
   const [workMode, setWorkMode] = useState<WorkMode | "any">("any");
   const [count, setCount] = useState(8);
 
@@ -40,9 +41,16 @@ export default function DiscoverPage() {
       const raw = window.localStorage.getItem(CRITERIA_KEY);
       if (raw) {
         const c = JSON.parse(raw);
-        setRole(c.role ?? "");
+        // Support both the new array shape and the earlier single-string shape.
+        const toArr = (v: unknown): string[] =>
+          Array.isArray(v)
+            ? v.filter((x): x is string => typeof x === "string")
+            : typeof v === "string" && v.trim()
+              ? [v.trim()]
+              : [];
+        setRoles(toArr(c.roles ?? c.role));
         setLocation(c.location ?? "");
-        setKeywords(c.keywords ?? "");
+        setKeywords(toArr(c.keywords));
         setWorkMode(c.workMode ?? "any");
         setCount(c.count ?? 8);
       }
@@ -61,7 +69,7 @@ export default function DiscoverPage() {
     try {
       window.localStorage.setItem(
         CRITERIA_KEY,
-        JSON.stringify({ role, location, keywords, workMode, count }),
+        JSON.stringify({ roles, location, keywords, workMode, count }),
       );
     } catch {
       /* ignore */
@@ -70,7 +78,7 @@ export default function DiscoverPage() {
 
   async function runSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!role.trim() || loading) return;
+    if (roles.length === 0 || loading) return;
     persist();
     setLoading(true);
     setError(null);
@@ -81,7 +89,7 @@ export default function DiscoverPage() {
       const res = await fetch("/api/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, location, keywords, workMode, count }),
+        body: JSON.stringify({ roles, location, keywords, workMode, count }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -158,14 +166,17 @@ export default function DiscoverPage() {
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className={labelCls}>Role *</label>
-              <input
-                className={inputCls}
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                placeholder="Software Engineering Intern"
+              <label className={labelCls}>
+                Roles *{" "}
+                <span className="font-normal text-slate-400">
+                  (type and press Enter to add several)
+                </span>
+              </label>
+              <TagInput
+                values={roles}
+                onChange={setRoles}
+                placeholder="Software Engineer, Data Analyst…"
                 autoFocus
-                required
               />
             </div>
             <div>
@@ -180,13 +191,14 @@ export default function DiscoverPage() {
             <div className="sm:col-span-2">
               <label className={labelCls}>
                 Keywords / timeframe{" "}
-                <span className="font-normal text-slate-400">(optional)</span>
+                <span className="font-normal text-slate-400">
+                  (optional — Enter to add)
+                </span>
               </label>
-              <input
-                className={inputCls}
-                value={keywords}
-                onChange={(e) => setKeywords(e.target.value)}
-                placeholder="e.g. Summer 2027 · new grad · fintech"
+              <TagInput
+                values={keywords}
+                onChange={setKeywords}
+                placeholder="Summer 2027, fintech, new grad…"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -227,7 +239,7 @@ export default function DiscoverPage() {
           <div className="mt-5 flex items-center gap-3">
             <button
               type="submit"
-              disabled={loading || !role.trim()}
+              disabled={loading || roles.length === 0}
               className="inline-flex items-center gap-2 rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (

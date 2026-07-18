@@ -15,6 +15,9 @@ const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GATEWAY_SEARCH_MODEL = "perplexity/sonar-pro";
 const GATEWAY_STRUCTURE_MODEL = "anthropic/claude-sonnet-5";
 
+const MAX_ROLES = 6;
+const MAX_FINDINGS_CHARS = 14000;
+
 // Plain enum (no null/unions) keeps Google's structured-output schema happy.
 const postingSchema = z.object({
   postings: z.array(
@@ -49,7 +52,7 @@ function normalize(raw: RawPosting[]): DiscoveredPosting[] {
 }
 
 function structurePrompt(
-  role: string,
+  roles: string[],
   location: string,
   keywords: string,
   count: number,
@@ -58,25 +61,44 @@ function structurePrompt(
 ) {
   const today = new Date().toISOString().slice(0, 10);
   const term = keywords.trim();
+  const roleList = roles.map((r) => `"${r}"`).join(", ");
   return (
     `Today's date is ${today}. Extract up to ${count} distinct, real, currently-open ` +
-    `internship postings for "${role}"${location ? ` in ${location}` : ""}` +
-    `${term ? ` for: ${term}` : ""} from the search findings below.\n\n` +
+    `internship postings matching ANY of these roles: ${roleList}` +
+    `${location ? ` in ${location}` : ""}${term ? ` for: ${term}` : ""} ` +
+    `from the search findings below.\n\n` +
     `Rules:\n` +
     `- Use ONLY information present in the findings. Do not invent postings or URLs.\n` +
     `- Each "url" must be a real link that appears in the findings or source list.\n` +
-    `- The role must match "${role}". Skip unrelated roles.\n` +
+    `- Each posting's role must match one of: ${roleList}. Skip unrelated roles.\n` +
     `- Include ONLY genuine job postings. Skip: aggregator/list/search pages ("jobs in X",\n` +
     `  Glassdoor/Indeed/LinkedIn search result pages), degree programs, bootcamps, courses,\n` +
     `  and full-time (non-internship) roles.\n` +
     `- Skip postings that are clearly outdated or from a past hiring cycle. Prefer postings\n` +
-    `  that are current as of ${today}` +
-    `${term ? ` and match "${term}"` : ""}.\n` +
+    `  that are current as of ${today}${term ? ` and match "${term}"` : ""}.\n` +
     `- Prefer direct company or applicant-tracking (Greenhouse, Lever, Ashby, Workday) links.\n` +
     `- If a field is unknown, use an empty string (or "unknown" for workMode).\n` +
     `- Deduplicate by company + role. It is fine to return fewer than ${count} if few qualify.\n\n` +
     `FINDINGS:\n${findings}\n\n` +
     `SOURCE URLS:\n${sources.join("\n") || "(none reported)"}`
+  );
+}
+
+function searchPrompt(
+  roles: string[],
+  where: string,
+  keywords: string,
+  modeText: string,
+  count: number,
+) {
+  const term = keywords.trim();
+  const roleList = roles.map((r) => `"${r}"`).join(", ");
+  return (
+    `Search the web for currently-open internship positions for any of these roles: ` +
+    `${roleList} in ${where}${term ? ` (${term})` : ""}.${modeText} Find at least ` +
+    `${count} distinct, real, currently-open postings with company, exact role title, ` +
+    `location, work mode, the direct application URL, any listed pay, and the source ` +
+    `site. Only include real, current postings you actually found — not old listings.`
   );
 }
 
@@ -94,7 +116,7 @@ function dedupeSources(sources: unknown): string[] {
 
 async function structure(
   model: LanguageModel,
-  role: string,
+  roles: string[],
   location: string,
   keywords: string,
   count: number,
@@ -104,58 +126,91 @@ async function structure(
   const { output } = await generateText({
     model,
     output: Output.object({ schema: postingSchema }),
-    prompt: structurePrompt(role, location, keywords, count, findings, sources),
+    prompt: structurePrompt(
+      roles,
+      location,
+      keywords,
+      count,
+      findings.slice(0, MAX_FINDINGS_CHARS),
+      sources,
+    ),
   });
   return normalize(output?.postings ?? []);
 }
 
-/** Free web search via Tavily -> Gemini (free) structures the results. */
+/** Free web search via Tavily (one query per role) -> Gemini structures the results. */
 async function discoverWithTavily(
-  role: string,
+  roles: string[],
   location: string,
   keywords: string,
   modeText: string,
   count: number,
   structureModel: LanguageModel,
 ) {
-  const query = [
-    role,
-    "internship",
-    keywords,
-    location,
-    /remote/i.test(modeText) ? "remote" : "",
-    "apply",
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const perRole = Math.min(Math.max(count, 6), 12);
 
-  const res = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
-    },
-    body: JSON.stringify({
-      query,
-      // Deeper search + more candidates so the model has real postings to pick from.
-      search_depth: "advanced",
-      max_results: Math.min(count * 3, 20),
-    }),
-  });
+  async function searchOne(role: string) {
+    const query = [
+      role,
+      "internship",
+      keywords,
+      location,
+      /remote/i.test(modeText) ? "remote" : "",
+      "apply",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
 
-  if (!res.ok) {
-    const status = res.status;
-    if (status === 401) throw new Error("Tavily: invalid api key");
-    if (status === 429 || status === 432)
-      throw new Error("Tavily: quota exceeded");
-    throw new Error(`Tavily search failed (${status})`);
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+      },
+      body: JSON.stringify({
+        query,
+        search_depth: "advanced",
+        max_results: perRole,
+      }),
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) throw new Error("Tavily: invalid api key");
+      if (res.status === 429 || res.status === 432)
+        throw new Error("Tavily: quota exceeded");
+      throw new Error(`Tavily search failed (${res.status})`);
+    }
+
+    const data = (await res.json()) as {
+      results?: { title?: string; url?: string; content?: string }[];
+    };
+    return data.results ?? [];
   }
 
-  const data = (await res.json()) as {
-    results?: { title?: string; url?: string; content?: string }[];
-  };
-  const results = data.results ?? [];
+  // Run all role searches in parallel; tolerate partial failures.
+  const settled = await Promise.allSettled(roles.map(searchOne));
+  const fulfilled = settled.filter(
+    (s): s is PromiseFulfilledResult<Awaited<ReturnType<typeof searchOne>>> =>
+      s.status === "fulfilled",
+  );
+  if (fulfilled.length === 0) {
+    const firstRejection = settled.find((s) => s.status === "rejected");
+    throw firstRejection && firstRejection.status === "rejected"
+      ? firstRejection.reason
+      : new Error("Tavily search failed");
+  }
+
+  const allResults = fulfilled.flatMap((s) => s.value);
+  // Dedupe results by URL before building the findings text.
+  const seen = new Set<string>();
+  const results = allResults.filter((r) => {
+    const u = r.url ?? "";
+    if (!u || seen.has(u)) return false;
+    seen.add(u);
+    return true;
+  });
+
   const findings = results
     .map(
       (r) =>
@@ -166,7 +221,7 @@ async function discoverWithTavily(
 
   const postings = await structure(
     structureModel,
-    role,
+    roles,
     location,
     keywords,
     count,
@@ -176,26 +231,9 @@ async function discoverWithTavily(
   return { postings, sources };
 }
 
-function searchPrompt(
-  role: string,
-  where: string,
-  keywords: string,
-  modeText: string,
-  count: number,
-) {
-  const term = keywords.trim();
-  return (
-    `Search the web for currently-open "${role}" internship positions in ${where}` +
-    `${term ? ` (${term})` : ""}.${modeText} Find at least ${count} distinct, real, ` +
-    `currently-open postings with company, exact role title, location, work mode, the ` +
-    `direct application URL, any listed pay, and the source site. Only include real, ` +
-    `current postings you actually found — not old or past-cycle listings.`
-  );
-}
-
 /** Gemini with Google Search grounding (requires billing enabled on the project). */
 async function discoverWithGemini(
-  role: string,
+  roles: string[],
   where: string,
   location: string,
   keywords: string,
@@ -205,12 +243,12 @@ async function discoverWithGemini(
   const search = await generateText({
     model: google(GEMINI_MODEL),
     tools: { google_search: google.tools.googleSearch({}) },
-    prompt: searchPrompt(role, where, keywords, modeText, count),
+    prompt: searchPrompt(roles, where, keywords, modeText, count),
   });
   const sources = dedupeSources(search.sources);
   const postings = await structure(
     google(GEMINI_MODEL),
-    role,
+    roles,
     location,
     keywords,
     count,
@@ -222,7 +260,7 @@ async function discoverWithGemini(
 
 /** Vercel AI Gateway: Perplexity searches, Claude structures (usage-billed). */
 async function discoverWithGateway(
-  role: string,
+  roles: string[],
   where: string,
   location: string,
   keywords: string,
@@ -231,12 +269,12 @@ async function discoverWithGateway(
 ) {
   const search = await generateText({
     model: GATEWAY_SEARCH_MODEL,
-    prompt: searchPrompt(role, where, keywords, modeText, count),
+    prompt: searchPrompt(roles, where, keywords, modeText, count),
   });
   const sources = dedupeSources(search.sources);
   const postings = await structure(
     GATEWAY_STRUCTURE_MODEL,
-    role,
+    roles,
     location,
     keywords,
     count,
@@ -246,14 +284,25 @@ async function discoverWithGateway(
   return { postings, sources };
 }
 
+function toStringArray(v: unknown): string[] {
+  const arr = Array.isArray(v) ? v : typeof v === "string" ? [v] : [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of arr) {
+    const s = String(item ?? "").trim();
+    if (!s || seen.has(s.toLowerCase())) continue;
+    seen.add(s.toLowerCase());
+    out.push(s);
+  }
+  return out;
+}
+
 export async function POST(req: Request) {
   const hasGoogle = Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   const hasTavily = Boolean(process.env.TAVILY_API_KEY);
   const hasGateway = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL);
-  // Grounding needs billing on the Google project, so it's opt-in only.
   const useGrounding = hasGoogle && process.env.GEMINI_USE_GROUNDING === "true";
 
-  // Which structuring model can we use for the Tavily path?
   const tavilyStructureModel: LanguageModel | null = hasGoogle
     ? google(GEMINI_MODEL)
     : hasGateway
@@ -263,23 +312,22 @@ export async function POST(req: Request) {
   const useTavily = hasTavily && Boolean(tavilyStructureModel);
 
   if (!useTavily && !useGrounding && !hasGateway) {
-    // Give a message tailored to what's already configured.
     const error = hasGoogle
       ? "Almost there — you have a Gemini key. Add a free TAVILY_API_KEY (web search) to .env.local and restart. A Gemini key alone can't search the web without enabling billing."
       : "AI is not configured. Add a free TAVILY_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY to .env.local — see README.";
     return NextResponse.json({ error, setup: true }, { status: 501 });
   }
 
-  let role = "";
+  let roles: string[] = [];
   let location = "";
   let keywords = "";
   let workMode = "any";
   let count = 8;
   try {
     const body = await req.json();
-    role = String(body.role ?? "").trim();
+    roles = toStringArray(body.roles ?? body.role).slice(0, MAX_ROLES);
     location = String(body.location ?? "").trim();
-    keywords = String(body.keywords ?? "").trim().slice(0, 120);
+    keywords = toStringArray(body.keywords).join(", ").slice(0, 160);
     workMode = ["onsite", "remote", "hybrid"].includes(body.workMode)
       ? body.workMode
       : "any";
@@ -288,9 +336,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  if (!role) {
+  if (roles.length === 0) {
     return NextResponse.json(
-      { error: "Please provide a role to search for." },
+      { error: "Please add at least one role to search for." },
       { status: 400 },
     );
   }
@@ -302,7 +350,7 @@ export async function POST(req: Request) {
     let result;
     if (useTavily && tavilyStructureModel) {
       result = await discoverWithTavily(
-        role,
+        roles,
         location,
         keywords,
         modeText,
@@ -311,7 +359,7 @@ export async function POST(req: Request) {
       );
     } else if (hasGateway) {
       result = await discoverWithGateway(
-        role,
+        roles,
         where,
         location,
         keywords,
@@ -319,9 +367,8 @@ export async function POST(req: Request) {
         count,
       );
     } else {
-      // opt-in grounding (requires billing on the Google project)
       result = await discoverWithGemini(
-        role,
+        roles,
         where,
         location,
         keywords,

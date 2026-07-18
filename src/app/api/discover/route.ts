@@ -8,8 +8,9 @@ import type { WorkMode } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-// Free structuring model (alias stays current; works on new AI Studio keys).
-const GEMINI_MODEL = "gemini-flash-latest";
+// Free structuring model — flash-lite is the cheapest current flash and has the
+// highest free-tier limits. (gemini-2.5-flash 404s for new AI Studio keys.)
+const GEMINI_MODEL = "gemini-flash-lite-latest";
 // Gateway fallback (usage-billed).
 const GATEWAY_SEARCH_MODEL = "perplexity/sonar-pro";
 const GATEWAY_STRUCTURE_MODEL = "anthropic/claude-sonnet-5";
@@ -119,7 +120,7 @@ async function discoverWithTavily(
     body: JSON.stringify({
       query,
       search_depth: "basic",
-      max_results: Math.min(count * 2, 20),
+      max_results: Math.min(count + 3, 12),
     }),
   });
 
@@ -136,7 +137,10 @@ async function discoverWithTavily(
   };
   const results = data.results ?? [];
   const findings = results
-    .map((r) => `${r.title ?? ""}\n${r.url ?? ""}\n${r.content ?? ""}`)
+    .map(
+      (r) =>
+        `${r.title ?? ""}\n${r.url ?? ""}\n${(r.content ?? "").slice(0, 350)}`,
+    )
     .join("\n\n");
   const sources = results.map((r) => r.url).filter((u): u is string => Boolean(u));
 

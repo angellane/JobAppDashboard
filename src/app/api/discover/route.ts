@@ -216,6 +216,8 @@ export async function POST(req: Request) {
   const hasGoogle = Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   const hasTavily = Boolean(process.env.TAVILY_API_KEY);
   const hasGateway = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL);
+  // Grounding needs billing on the Google project, so it's opt-in only.
+  const useGrounding = hasGoogle && process.env.GEMINI_USE_GROUNDING === "true";
 
   // Which structuring model can we use for the Tavily path?
   const tavilyStructureModel: LanguageModel | null = hasGoogle
@@ -224,15 +226,14 @@ export async function POST(req: Request) {
       ? GATEWAY_STRUCTURE_MODEL
       : null;
 
-  if (!(hasTavily && tavilyStructureModel) && !hasGoogle && !hasGateway) {
-    return NextResponse.json(
-      {
-        error:
-          "AI is not configured. Add a free GOOGLE_GENERATIVE_AI_API_KEY and TAVILY_API_KEY to .env.local — see README.",
-        setup: true,
-      },
-      { status: 501 },
-    );
+  const useTavily = hasTavily && Boolean(tavilyStructureModel);
+
+  if (!useTavily && !useGrounding && !hasGateway) {
+    // Give a message tailored to what's already configured.
+    const error = hasGoogle
+      ? "Almost there — you have a Gemini key. Add a free TAVILY_API_KEY (web search) to .env.local and restart. A Gemini key alone can't search the web without enabling billing."
+      : "AI is not configured. Add a free TAVILY_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY to .env.local — see README.";
+    return NextResponse.json({ error, setup: true }, { status: 501 });
   }
 
   let role = "";
@@ -263,7 +264,7 @@ export async function POST(req: Request) {
 
   try {
     let result;
-    if (hasTavily && tavilyStructureModel) {
+    if (useTavily && tavilyStructureModel) {
       result = await discoverWithTavily(
         role,
         location,
@@ -271,10 +272,11 @@ export async function POST(req: Request) {
         count,
         tavilyStructureModel,
       );
-    } else if (hasGoogle) {
-      result = await discoverWithGemini(role, where, location, modeText, count);
-    } else {
+    } else if (hasGateway) {
       result = await discoverWithGateway(role, where, location, modeText, count);
+    } else {
+      // opt-in grounding (requires billing on the Google project)
+      result = await discoverWithGemini(role, where, location, modeText, count);
     }
     return NextResponse.json(result);
   } catch (err) {

@@ -29,18 +29,31 @@ launch — edit or delete them freely.
 ### AI features (Discover)
 
 The **Discover** page uses an AI agent to search the web for open internships.
-It needs a Vercel AI Gateway key:
+Add an API key to `.env.local`:
 
 ```bash
-cp .env.example .env.local   # then add your key
+cp .env.example .env.local   # then add ONE key
+```
+
+**Option A — Google Gemini (recommended, free).** A free AI Studio key with
+generous limits; uses Google Search grounding for live web search:
+
+```bash
+# .env.local
+GOOGLE_GENERATIVE_AI_API_KEY=your_key_here
+```
+
+Get one at **https://aistudio.google.com/apikey**.
+
+**Option B — Vercel AI Gateway (fallback, usage-billed).** Uses Perplexity Sonar
++ Claude; only used if the Gemini key is not set:
+
+```bash
 # .env.local
 AI_GATEWAY_API_KEY=your_key_here
 ```
 
-Get a key at **vercel.com → AI Gateway → API Keys**, then restart `npm run dev`.
-On a Vercel deployment you can use OIDC instead (no key needed). Discovery uses
-Perplexity Sonar for live web search and Claude to structure the results — both
-billed through your AI Gateway account.
+Restart `npm run dev` after adding a key.
 
 ## Scripts
 

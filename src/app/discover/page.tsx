@@ -247,13 +247,19 @@ export default function DiscoverPage() {
             </p>
             {setupNeeded && (
               <div className="mt-2 text-slate-500 dark:text-slate-400">
-                <p>To enable AI discovery, add a Vercel AI Gateway key:</p>
+                <p>
+                  To enable AI discovery, add a free Google Gemini key to{" "}
+                  <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
+                    .env.local
+                  </code>
+                  :
+                </p>
                 <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800">
 {`# .env.local
-AI_GATEWAY_API_KEY=your_key_here`}
+GOOGLE_GENERATIVE_AI_API_KEY=your_key_here`}
                 </pre>
                 <p className="mt-2">
-                  Get one at vercel.com → AI Gateway → API Keys, then restart the
+                  Get a free key at aistudio.google.com/apikey, then restart the
                   dev server.
                 </p>
               </div>

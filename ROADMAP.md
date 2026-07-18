@@ -34,10 +34,13 @@ Features requested by the user, to be built after the tracker is solid:
    career pages, job boards, etc.), finds relevant internship postings matching the
    user's criteria, adds them to the tracker, and can then automatically apply to
    the ones the user approves.
-   - [x] **Discovery** — `/discover` page + `/api/discover` route. Perplexity Sonar
-     does live web search; Claude structures the findings into tracker-ready postings.
-     Dedupes against existing applications; user adds selected/all to the tracker.
-     Needs `AI_GATEWAY_API_KEY` (or Vercel OIDC).
+   - [x] **Discovery** — `/discover` page + `/api/discover` route. Two-step: live web
+     search → structure findings into tracker-ready postings. Dedupes against existing
+     applications; user adds selected/all to the tracker.
+     - Primary (free): Google Gemini via AI Studio (`GOOGLE_GENERATIVE_AI_API_KEY`),
+       using Google Search grounding.
+     - Fallback (usage-billed): Vercel AI Gateway — Perplexity Sonar + Claude
+       (`AI_GATEWAY_API_KEY` or Vercel OIDC).
    - [ ] **Auto-apply** — fill and submit applications for approved postings using the
      profile/résumé (headless browser automation + human approval step).
 

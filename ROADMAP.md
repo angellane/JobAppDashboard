@@ -34,6 +34,12 @@ Features requested by the user, to be built after the tracker is solid:
    career pages, job boards, etc.), finds relevant internship postings matching the
    user's criteria, adds them to the tracker, and can then automatically apply to
    the ones the user approves.
+   - [x] **Discovery** — `/discover` page + `/api/discover` route. Perplexity Sonar
+     does live web search; Claude structures the findings into tracker-ready postings.
+     Dedupes against existing applications; user adds selected/all to the tracker.
+     Needs `AI_GATEWAY_API_KEY` (or Vercel OIDC).
+   - [ ] **Auto-apply** — fill and submit applications for approved postings using the
+     profile/résumé (headless browser automation + human approval step).
 
 3. **LLM résumé extraction.**
    Replace the heuristic auto-fill with an LLM that reads the extracted CV text and

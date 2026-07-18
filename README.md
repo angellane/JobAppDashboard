@@ -26,6 +26,22 @@ npm run dev       # start the dev server
 Then open http://localhost:3000. The app seeds a few example rows on first
 launch — edit or delete them freely.
 
+### AI features (Discover)
+
+The **Discover** page uses an AI agent to search the web for open internships.
+It needs a Vercel AI Gateway key:
+
+```bash
+cp .env.example .env.local   # then add your key
+# .env.local
+AI_GATEWAY_API_KEY=your_key_here
+```
+
+Get a key at **vercel.com → AI Gateway → API Keys**, then restart `npm run dev`.
+On a Vercel deployment you can use OIDC instead (no key needed). Discovery uses
+Perplexity Sonar for live web search and Claude to structure the results — both
+billed through your AI Gateway account.
+
 ## Scripts
 
 - `npm run dev` — development server

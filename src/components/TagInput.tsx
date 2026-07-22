@@ -1,30 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 
 interface Props {
   values: string[];
   onChange: (next: string[]) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Always mirrors the uncommitted draft text, so a parent can flush it on submit. */
+  pendingRef?: RefObject<string>;
 }
 
 /**
  * A chip/tag input: type a value and press Enter (or comma) to add it.
  * Backspace on an empty field removes the last chip.
  */
-export function TagInput({ values, onChange, placeholder, autoFocus }: Props) {
+export function TagInput({
+  values,
+  onChange,
+  placeholder,
+  autoFocus,
+  pendingRef,
+}: Props) {
   const [draft, setDraft] = useState("");
+
+  function setDraftValue(v: string) {
+    setDraft(v);
+    if (pendingRef) pendingRef.current = v;
+  }
 
   function add(raw: string) {
     const v = raw.trim().replace(/,$/, "").trim();
     if (!v) return;
     if (values.some((x) => x.toLowerCase() === v.toLowerCase())) {
-      setDraft("");
+      setDraftValue("");
       return;
     }
     onChange([...values, v]);
-    setDraft("");
+    setDraftValue("");
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -64,11 +77,11 @@ export function TagInput({ values, onChange, placeholder, autoFocus }: Props) {
       <input
         value={draft}
         autoFocus={autoFocus}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => setDraftValue(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={() => add(draft)}
         placeholder={values.length === 0 ? placeholder : "Add another…"}
-        className="min-w-[8rem] flex-1 bg-transparent px-1.5 py-1 text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
+        className="min-w-32 flex-1 bg-transparent px-1.5 py-1 text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
       />
     </div>
   );

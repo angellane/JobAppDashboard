@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApplications } from "@/lib/store";
 import {
   dedupeKey,
@@ -35,6 +35,18 @@ export default function DiscoverPage() {
   const [sources, setSources] = useState<string[]>([]);
   const [addedKeys, setAddedKeys] = useState<Set<string>>(new Set());
 
+  // Mirror any uncommitted text in the tag inputs so search still uses it.
+  const rolesPending = useRef("");
+  const keywordsPending = useRef("");
+
+  function withPending(list: string[], pending: string): string[] {
+    const p = pending.trim();
+    if (p && !list.some((x) => x.toLowerCase() === p.toLowerCase())) {
+      return [...list, p];
+    }
+    return list;
+  }
+
   // Restore last-used criteria.
   useEffect(() => {
     try {
@@ -65,11 +77,11 @@ export default function DiscoverPage() {
     [apps],
   );
 
-  function persist() {
+  function persist(r: string[], k: string[]) {
     try {
       window.localStorage.setItem(
         CRITERIA_KEY,
-        JSON.stringify({ roles, location, keywords, workMode, count }),
+        JSON.stringify({ roles: r, location, keywords: k, workMode, count }),
       );
     } catch {
       /* ignore */
@@ -78,8 +90,22 @@ export default function DiscoverPage() {
 
   async function runSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (roles.length === 0 || loading) return;
-    persist();
+    if (loading) return;
+
+    // Include any text typed but not yet turned into a chip.
+    const effRoles = withPending(roles, rolesPending.current);
+    const effKeywords = withPending(keywords, keywordsPending.current);
+    if (effRoles.length === 0) {
+      setError("Add at least one role to search for.");
+      return;
+    }
+    // Commit drafts into the visible chips.
+    if (effRoles.length !== roles.length) setRoles(effRoles);
+    if (effKeywords.length !== keywords.length) setKeywords(effKeywords);
+    rolesPending.current = "";
+    keywordsPending.current = "";
+
+    persist(effRoles, effKeywords);
     setLoading(true);
     setError(null);
     setSetupNeeded(false);
@@ -89,7 +115,13 @@ export default function DiscoverPage() {
       const res = await fetch("/api/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roles, location, keywords, workMode, count }),
+        body: JSON.stringify({
+          roles: effRoles,
+          location,
+          keywords: effKeywords,
+          workMode,
+          count,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -175,6 +207,7 @@ export default function DiscoverPage() {
               <TagInput
                 values={roles}
                 onChange={setRoles}
+                pendingRef={rolesPending}
                 placeholder="Software Engineer, Data Analyst…"
                 autoFocus
               />
@@ -198,6 +231,7 @@ export default function DiscoverPage() {
               <TagInput
                 values={keywords}
                 onChange={setKeywords}
+                pendingRef={keywordsPending}
                 placeholder="Summer 2027, fintech, new grad…"
               />
             </div>
@@ -239,7 +273,7 @@ export default function DiscoverPage() {
           <div className="mt-5 flex items-center gap-3">
             <button
               type="submit"
-              disabled={loading || roles.length === 0}
+              disabled={loading}
               className="inline-flex items-center gap-2 rounded-lg bg-linear-to-b from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-950/40 ring-1 ring-blue-400/30 transition hover:from-blue-400 hover:to-blue-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? (

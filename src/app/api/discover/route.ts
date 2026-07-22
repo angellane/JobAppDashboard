@@ -66,19 +66,24 @@ function structurePrompt(
     `Today's date is ${today}. Extract up to ${count} distinct, real, currently-open ` +
     `internship postings matching ANY of these roles: ${roleList}` +
     `${location ? ` in ${location}` : ""}${term ? ` for: ${term}` : ""} ` +
-    `from the search findings below.\n\n` +
+    `from the web search findings below.\n\n` +
     `Rules:\n` +
-    `- Use ONLY information present in the findings. Do not invent postings or URLs.\n` +
-    `- Each "url" must be a real link that appears in the findings or source list.\n` +
-    `- Each posting's role must match one of: ${roleList}. Skip unrelated roles.\n` +
-    `- Include ONLY genuine job postings. Skip: aggregator/list/search pages ("jobs in X",\n` +
-    `  Glassdoor/Indeed/LinkedIn search result pages), degree programs, bootcamps, courses,\n` +
-    `  and full-time (non-internship) roles.\n` +
-    `- Skip postings that are clearly outdated or from a past hiring cycle. Prefer postings\n` +
-    `  that are current as of ${today}${term ? ` and match "${term}"` : ""}.\n` +
-    `- Prefer direct company or applicant-tracking (Greenhouse, Lever, Ashby, Workday) links.\n` +
+    `- Use ONLY information present in the findings. NEVER invent a company, role, or URL.\n` +
+    `  A company must be explicitly named in the findings to be included.\n` +
+    `- Each "url" must be a real link that appears in the findings or source list. Use the\n` +
+    `  most specific link available for that posting.\n` +
+    `- Prefer direct company / applicant-tracking postings (Greenhouse, Lever, Ashby, Workday,\n` +
+    `  company careers pages). A posting listed on a job board is fine IF a specific company\n` +
+    `  and role are named in the findings.\n` +
+    `- Each posting's role must reasonably match one of: ${roleList}.\n` +
+    `- Do NOT output an entry for: how-to guides/articles, "best internships" lists, courses,\n` +
+    `  degree/bootcamp programs, Wikipedia, tourism pages, YouTube, GitHub repos, or generic\n` +
+    `  "N jobs in X" search pages that don't name a specific company + role.\n` +
+    `- Skip clearly outdated or past-cycle postings; prefer current as of ${today}` +
+    `${term ? ` and matching "${term}"` : ""}.\n` +
     `- If a field is unknown, use an empty string (or "unknown" for workMode).\n` +
-    `- Deduplicate by company + role. It is fine to return fewer than ${count} if few qualify.\n\n` +
+    `- Deduplicate by company + role. Returning fewer than ${count} is fine, but DO include\n` +
+    `  every genuine company posting you can identify in the findings.\n\n` +
     `FINDINGS:\n${findings}\n\n` +
     `SOURCE URLS:\n${sources.join("\n") || "(none reported)"}`
   );
@@ -147,45 +152,52 @@ async function discoverWithTavily(
   count: number,
   structureModel: LanguageModel,
 ) {
-  const perRole = Math.min(Math.max(count, 6), 12);
+  const remote = /remote/i.test(modeText) ? "remote" : "";
 
-  async function searchOne(role: string) {
-    const query = [
-      role,
-      "internship",
-      keywords,
-      location,
-      /remote/i.test(modeText) ? "remote" : "",
-      "apply",
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
+  async function tavilyQuery(query: string, max: number) {
     const res = await fetch("https://api.tavily.com/search", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
       },
-      body: JSON.stringify({
-        query,
-        search_depth: "advanced",
-        max_results: perRole,
-      }),
+      body: JSON.stringify({ query, search_depth: "advanced", max_results: max }),
     });
-
     if (!res.ok) {
       if (res.status === 401) throw new Error("Tavily: invalid api key");
       if (res.status === 429 || res.status === 432)
         throw new Error("Tavily: quota exceeded");
       throw new Error(`Tavily search failed (${res.status})`);
     }
-
     const data = (await res.json()) as {
       results?: { title?: string; url?: string; content?: string }[];
     };
     return data.results ?? [];
+  }
+
+  async function searchOne(role: string) {
+    const base = [role, "internship", keywords, location, remote, "apply"]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    // A second query biased toward direct company/ATS postings — plain job-board
+    // searches alone tend to return generic "N jobs in X" list pages.
+    const careers = [
+      role,
+      "internship",
+      keywords,
+      location,
+      "(careers OR greenhouse.io OR lever.co OR myworkdayjobs.com OR ashbyhq.com OR gradireland.com)",
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    const lists = await Promise.all([
+      tavilyQuery(base, 7),
+      tavilyQuery(careers, 7),
+    ]);
+    return lists.flat();
   }
 
   // Run all role searches in parallel; tolerate partial failures.

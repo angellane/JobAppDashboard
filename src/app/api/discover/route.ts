@@ -55,6 +55,31 @@ function normalize(raw: RawPosting[]): DiscoveredPosting[] {
 
 const SERPAPI_URL = "https://serpapi.com/search.json";
 
+// SerpApi's google_jobs engine needs a `location` name (not a `gl` code).
+const COUNTRY_NAMES: Record<string, string> = {
+  us: "United States",
+  ie: "Ireland",
+  gb: "United Kingdom",
+  ca: "Canada",
+  au: "Australia",
+  de: "Germany",
+  fr: "France",
+  nl: "Netherlands",
+  es: "Spain",
+  it: "Italy",
+  se: "Sweden",
+  ch: "Switzerland",
+  pl: "Poland",
+  nz: "New Zealand",
+  in: "India",
+  sg: "Singapore",
+  ae: "United Arab Emirates",
+  za: "South Africa",
+  br: "Brazil",
+  mx: "Mexico",
+  jp: "Japan",
+};
+
 interface SerpJob {
   title?: string;
   company_name?: string;
@@ -104,32 +129,42 @@ async function discoverWithSerpApi(
   count: number,
 ) {
   async function one(role: string) {
-    const q = [role, "intern", keywords, location ? `in ${location}` : ""]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-    const url = new URL(SERPAPI_URL);
-    url.searchParams.set("engine", "google_jobs");
-    url.searchParams.set("q", q);
-    if (country) url.searchParams.set("gl", country);
-    url.searchParams.set("hl", "en");
-    url.searchParams.set("api_key", process.env.SERPAPI_API_KEY as string);
+    const query = [role, "intern", keywords].filter(Boolean).join(" ").trim();
+    const countryName = COUNTRY_NAMES[country] || "";
+    // Try the most specific location first, then broaden on a location error.
+    const candidates = [
+      [location, countryName].filter(Boolean).join(", "),
+      countryName,
+      "",
+    ].filter((v, i, a) => a.indexOf(v) === i);
 
-    const res = await fetch(url);
-    const data = (await res.json().catch(() => ({}))) as {
-      jobs_results?: SerpJob[];
-      error?: string;
-    };
-    if (data.error) {
-      if (/invalid api key|unauthor/i.test(data.error))
-        throw new Error("SerpApi: invalid api key");
-      if (/run out|exceeded|limit|plan/i.test(data.error))
-        throw new Error("SerpApi: quota exceeded");
-      // e.g. "Google hasn't returned any results" — treat as empty.
-      return [];
+    for (let i = 0; i < candidates.length; i++) {
+      const loc = candidates[i];
+      const url = new URL(SERPAPI_URL);
+      url.searchParams.set("engine", "google_jobs");
+      url.searchParams.set("q", query);
+      if (loc) url.searchParams.set("location", loc);
+      url.searchParams.set("hl", "en");
+      url.searchParams.set("api_key", process.env.SERPAPI_API_KEY as string);
+
+      const res = await fetch(url);
+      const data = (await res.json().catch(() => ({}))) as {
+        jobs_results?: SerpJob[];
+        error?: string;
+      };
+      if (data.error) {
+        if (/invalid api key|unauthor/i.test(data.error))
+          throw new Error("SerpApi: invalid api key");
+        if (/run out|exceeded|limit|plan/i.test(data.error))
+          throw new Error("SerpApi: quota exceeded");
+        // Unsupported/invalid location → retry with a broader location.
+        if (/location/i.test(data.error) && i < candidates.length - 1) continue;
+        return []; // "no results" or final attempt
+      }
+      if (!res.ok) throw new Error(`SerpApi failed (${res.status})`);
+      return Array.isArray(data.jobs_results) ? data.jobs_results : [];
     }
-    if (!res.ok) throw new Error(`SerpApi failed (${res.status})`);
-    return Array.isArray(data.jobs_results) ? data.jobs_results : [];
+    return [];
   }
 
   const settled = await Promise.allSettled(roles.map(one));

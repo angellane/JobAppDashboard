@@ -127,8 +127,8 @@ async function discoverWithJSearch(
       if (res.status === 429) throw new Error("JSearch: quota exceeded");
       throw new Error(`JSearch failed (${res.status})`);
     }
-    const data = (await res.json()) as { data?: JSearchJob[] };
-    return Array.isArray(data?.data) ? data.data : [];
+    const data = (await res.json()) as { data?: { jobs?: JSearchJob[] } };
+    return Array.isArray(data?.data?.jobs) ? data.data.jobs : [];
   }
 
   const settled = await Promise.allSettled(roles.map(one));
@@ -155,6 +155,104 @@ async function discoverWithJSearch(
   const mapped = jobs.map(mapJSearchJob);
   // Prefer clearly-internship roles, but keep everything if that leaves nothing.
   const interns = mapped.filter((p) => /intern|placement|co-?op/i.test(p.role));
+  const chosen = (interns.length > 0 ? interns : mapped).slice(0, count);
+  const sources = Array.from(new Set(chosen.map((p) => p.url).filter(Boolean)));
+  return { postings: chosen, sources };
+}
+
+// ---- Source: Jooble (job aggregator; covers Ireland and 60+ countries) -----
+
+// Jooble uses country subdomains; a few differ from ISO codes.
+const JOOBLE_HOST_OVERRIDE: Record<string, string> = { gb: "uk" };
+
+interface JoobleJob {
+  title?: string;
+  location?: string;
+  snippet?: string;
+  salary?: string;
+  source?: string;
+  type?: string;
+  link?: string;
+  company?: string;
+  updated?: string;
+  id?: number | string;
+}
+
+function mapJoobleJob(j: JoobleJob): DiscoveredPosting {
+  const text = `${j.title ?? ""} ${j.type ?? ""} ${j.location ?? ""}`;
+  return {
+    company: j.company || j.source || "Unknown",
+    role: j.title || "",
+    location: j.location || "",
+    workMode: /remote|work from home/i.test(text) ? "remote" : null,
+    url: j.link || "",
+    salary: j.salary || "",
+    source: j.source || "Jooble",
+    summary: (j.snippet || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 180),
+  };
+}
+
+async function discoverWithJooble(
+  roles: string[],
+  location: string,
+  keywords: string,
+  country: string,
+  count: number,
+) {
+  const sub = country ? JOOBLE_HOST_OVERRIDE[country] || country : "";
+  const host = sub ? `https://${sub}.jooble.org` : "https://jooble.org";
+  const endpoint = `${host}/api/${process.env.JOOBLE_API_KEY}`;
+
+  async function one(role: string) {
+    const keywordStr = [role, "intern", keywords].filter(Boolean).join(" ");
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        keywords: keywordStr,
+        location,
+        ResultOnPage: Math.min(count * 2, 20),
+      }),
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403)
+        throw new Error("Jooble: invalid api key");
+      if (res.status === 429) throw new Error("Jooble: quota exceeded");
+      throw new Error(`Jooble failed (${res.status})`);
+    }
+    const data = (await res.json()) as { jobs?: JoobleJob[] };
+    return Array.isArray(data?.jobs) ? data.jobs : [];
+  }
+
+  const settled = await Promise.allSettled(roles.map(one));
+  const fulfilled = settled.filter(
+    (s): s is PromiseFulfilledResult<JoobleJob[]> => s.status === "fulfilled",
+  );
+  if (fulfilled.length === 0) {
+    const rej = settled.find((s) => s.status === "rejected");
+    throw rej && rej.status === "rejected"
+      ? rej.reason
+      : new Error("Jooble failed");
+  }
+
+  const seen = new Set<string>();
+  const jobs: JoobleJob[] = [];
+  for (const j of fulfilled.flatMap((s) => s.value)) {
+    const key = String(j.id ?? j.link ?? "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    jobs.push(j);
+  }
+
+  const mapped = jobs.map(mapJoobleJob);
+  // Keep internship-ish roles; if none match, fall back to all so we show something.
+  const interns = mapped.filter((p) =>
+    /intern|placement|co-?op|trainee/i.test(p.role),
+  );
   const chosen = (interns.length > 0 ? interns : mapped).slice(0, count);
   const sources = Array.from(new Set(chosen.map((p) => p.url).filter(Boolean)));
   return { postings: chosen, sources };
@@ -422,6 +520,7 @@ function toStringArray(v: unknown): string[] {
 
 export async function POST(req: Request) {
   const hasJSearch = Boolean(process.env.JSEARCH_API_KEY);
+  const hasJooble = Boolean(process.env.JOOBLE_API_KEY);
   const hasGoogle = Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   const hasTavily = Boolean(process.env.TAVILY_API_KEY);
   const hasGateway = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL);
@@ -435,11 +534,11 @@ export async function POST(req: Request) {
 
   const useTavily = hasTavily && Boolean(tavilyStructureModel);
 
-  if (!hasJSearch && !useTavily && !useGrounding && !hasGateway) {
+  if (!hasJSearch && !hasJooble && !useTavily && !useGrounding && !hasGateway) {
     return NextResponse.json(
       {
         error:
-          "AI discovery isn't configured. Add a free JSEARCH_API_KEY (real job listings) to .env.local — see README.",
+          "AI discovery isn't configured. Add a free JSEARCH_API_KEY (US/UK etc.) and/or JOOBLE_API_KEY (Ireland + more) to .env.local — see README.",
         setup: true,
       },
       { status: 501 },
@@ -481,14 +580,33 @@ export async function POST(req: Request) {
 
   try {
     let result;
-    if (hasJSearch) {
-      result = await discoverWithJSearch(
-        roles,
-        location,
-        keywords,
-        country,
-        count,
-      );
+    if (hasJSearch || hasJooble) {
+      // JSearch (Google for Jobs) is best where it has coverage; Jooble covers
+      // Ireland and many countries JSearch misses. Use JSearch first, then fall
+      // back to Jooble when JSearch returns nothing.
+      if (hasJSearch) {
+        try {
+          result = await discoverWithJSearch(
+            roles,
+            location,
+            keywords,
+            country,
+            count,
+          );
+        } catch (e) {
+          if (!hasJooble) throw e;
+        }
+      }
+      if ((!result || result.postings.length === 0) && hasJooble) {
+        result = await discoverWithJooble(
+          roles,
+          location,
+          keywords,
+          country,
+          count,
+        );
+      }
+      result = result ?? { postings: [], sources: [] };
     } else if (useTavily && tavilyStructureModel) {
       result = await discoverWithTavily(
         roles,
@@ -526,6 +644,10 @@ export async function POST(req: Request) {
       message = "Your JSearch API key looks invalid — check JSEARCH_API_KEY.";
     else if (/jsearch: quota/i.test(raw))
       message = "JSearch monthly request quota reached. It resets next month.";
+    else if (/jooble: invalid/i.test(raw))
+      message = "Your Jooble API key looks invalid — check JOOBLE_API_KEY.";
+    else if (/jooble: quota/i.test(raw))
+      message = "Jooble request quota reached. It resets next month.";
     else if (/tavily: invalid/i.test(raw))
       message = "Your Tavily API key looks invalid — check TAVILY_API_KEY.";
     else if (/tavily: quota/i.test(raw))

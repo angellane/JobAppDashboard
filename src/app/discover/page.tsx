@@ -352,15 +352,16 @@ export default function DiscoverPage() {
             {setupNeeded && (
               <div className="mt-2 text-slate-500 dark:text-slate-400">
                 <p>
-                  Add a free JSearch key to{" "}
+                  Add a free job-listings key to{" "}
                   <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
                     .env.local
                   </code>{" "}
-                  (real job listings, 200 searches/month, no card):
+                  (no credit card):
                 </p>
                 <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800">
 {`# .env.local
-JSEARCH_API_KEY=your_key   # openwebninja.com/api/jsearch`}
+JSEARCH_API_KEY=your_key   # US/UK/etc — openwebninja.com/api/jsearch
+JOOBLE_API_KEY=your_key    # Ireland + more — jooble.org/api/about`}
                 </pre>
                 <p className="mt-2">Then restart the dev server.</p>
               </div>

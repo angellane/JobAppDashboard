@@ -38,16 +38,24 @@ cp .env.example .env.local
 JSEARCH_API_KEY=your_key
 ```
 
-Get a free key at **https://www.openwebninja.com/api/jsearch** — 200 requests/
-month, **no credit card**. Restart `npm run dev` after adding it.
+Recommended key — **SerpApi** (Google for Jobs, accurate location, widest
+coverage incl. Ireland):
+
+```bash
+# .env.local
+SERPAPI_API_KEY=your_key
+```
+
+Get a free key at **https://serpapi.com/users/sign_up** — 250 searches/month,
+**no credit card**. Restart `npm run dev` after adding it.
 
 Each Discover run uses one request per role. Pick the **Country** in the form so
 results are geo-filtered correctly (e.g. Ireland for Limerick).
 
-> Fallbacks: if no `JSEARCH_API_KEY` is set, Discover falls back to a general
-> web-search approach (`TAVILY_API_KEY` + `GOOGLE_GENERATIVE_AI_API_KEY`, or
-> `AI_GATEWAY_API_KEY`). These are far less reliable for job search and are not
-> recommended.
+> Additional sources (optional, used only when SerpApi is empty/absent):
+> `JSEARCH_API_KEY` (US/UK/most countries), `JOOBLE_API_KEY` (aggregator), then a
+> general web-search fallback (`TAVILY_API_KEY` + `GOOGLE_GENERATIVE_AI_API_KEY`
+> or `AI_GATEWAY_API_KEY`).
 
 ## Scripts
 

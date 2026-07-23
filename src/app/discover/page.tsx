@@ -360,8 +360,7 @@ export default function DiscoverPage() {
                 </p>
                 <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800">
 {`# .env.local
-JSEARCH_API_KEY=your_key   # US/UK/etc — openwebninja.com/api/jsearch
-JOOBLE_API_KEY=your_key    # Ireland + more — jooble.org/api/about`}
+SERPAPI_API_KEY=your_key   # Google Jobs, best coverage — serpapi.com`}
                 </pre>
                 <p className="mt-2">Then restart the dev server.</p>
               </div>

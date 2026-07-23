@@ -51,7 +51,115 @@ function normalize(raw: RawPosting[]): DiscoveredPosting[] {
   }));
 }
 
-// ---- Primary source: JSearch (real-time Google for Jobs data) --------------
+// ---- Primary source: SerpApi (Google for Jobs, accurate location) ----------
+
+const SERPAPI_URL = "https://serpapi.com/search.json";
+
+interface SerpJob {
+  title?: string;
+  company_name?: string;
+  location?: string;
+  via?: string;
+  description?: string;
+  share_link?: string;
+  job_id?: string;
+  detected_extensions?: {
+    posted_at?: string;
+    schedule_type?: string;
+    work_from_home?: boolean;
+    salary?: string;
+  };
+  apply_options?: { title?: string; link?: string }[];
+}
+
+function isInternship(j: SerpJob): boolean {
+  return (
+    /intern/i.test(j.detected_extensions?.schedule_type || "") ||
+    /intern|placement|co-?op|trainee/i.test(j.title || "")
+  );
+}
+
+function mapSerpJob(j: SerpJob): DiscoveredPosting {
+  const de = j.detected_extensions || {};
+  return {
+    company: j.company_name || "Unknown",
+    role: j.title || "",
+    location: j.location || "",
+    workMode: de.work_from_home ? "remote" : null,
+    url:
+      (Array.isArray(j.apply_options) && j.apply_options[0]?.link) ||
+      j.share_link ||
+      "",
+    salary: de.salary || "",
+    source: (j.via || "").replace(/^via\s+/i, "") || "Google Jobs",
+    summary: (j.description || "").replace(/\s+/g, " ").trim().slice(0, 180),
+  };
+}
+
+async function discoverWithSerpApi(
+  roles: string[],
+  location: string,
+  keywords: string,
+  country: string,
+  count: number,
+) {
+  async function one(role: string) {
+    const q = [role, "intern", keywords, location ? `in ${location}` : ""]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const url = new URL(SERPAPI_URL);
+    url.searchParams.set("engine", "google_jobs");
+    url.searchParams.set("q", q);
+    if (country) url.searchParams.set("gl", country);
+    url.searchParams.set("hl", "en");
+    url.searchParams.set("api_key", process.env.SERPAPI_API_KEY as string);
+
+    const res = await fetch(url);
+    const data = (await res.json().catch(() => ({}))) as {
+      jobs_results?: SerpJob[];
+      error?: string;
+    };
+    if (data.error) {
+      if (/invalid api key|unauthor/i.test(data.error))
+        throw new Error("SerpApi: invalid api key");
+      if (/run out|exceeded|limit|plan/i.test(data.error))
+        throw new Error("SerpApi: quota exceeded");
+      // e.g. "Google hasn't returned any results" — treat as empty.
+      return [];
+    }
+    if (!res.ok) throw new Error(`SerpApi failed (${res.status})`);
+    return Array.isArray(data.jobs_results) ? data.jobs_results : [];
+  }
+
+  const settled = await Promise.allSettled(roles.map(one));
+  const fulfilled = settled.filter(
+    (s): s is PromiseFulfilledResult<SerpJob[]> => s.status === "fulfilled",
+  );
+  if (fulfilled.length === 0) {
+    const rej = settled.find((s) => s.status === "rejected");
+    throw rej && rej.status === "rejected"
+      ? rej.reason
+      : new Error("SerpApi failed");
+  }
+
+  const seen = new Set<string>();
+  const jobs: SerpJob[] = [];
+  for (const j of fulfilled.flatMap((s) => s.value)) {
+    const key = j.job_id || `${j.company_name}|${j.title}`;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    jobs.push(j);
+  }
+
+  const interns = jobs.filter(isInternship);
+  const chosen = (interns.length > 0 ? interns : jobs).slice(0, count);
+  const postings = chosen.map(mapSerpJob);
+  const sources = Array.from(new Set(postings.map((p) => p.url).filter(Boolean)));
+  return { postings, sources };
+}
+
+// ---- Source: JSearch (real-time Google for Jobs data) ----------------------
 
 const JSEARCH_URL = "https://api.openwebninja.com/jsearch/search-v2";
 
@@ -519,6 +627,7 @@ function toStringArray(v: unknown): string[] {
 }
 
 export async function POST(req: Request) {
+  const hasSerp = Boolean(process.env.SERPAPI_API_KEY);
   const hasJSearch = Boolean(process.env.JSEARCH_API_KEY);
   const hasJooble = Boolean(process.env.JOOBLE_API_KEY);
   const hasGoogle = Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
@@ -534,11 +643,18 @@ export async function POST(req: Request) {
 
   const useTavily = hasTavily && Boolean(tavilyStructureModel);
 
-  if (!hasJSearch && !hasJooble && !useTavily && !useGrounding && !hasGateway) {
+  if (
+    !hasSerp &&
+    !hasJSearch &&
+    !hasJooble &&
+    !useTavily &&
+    !useGrounding &&
+    !hasGateway
+  ) {
     return NextResponse.json(
       {
         error:
-          "AI discovery isn't configured. Add a free JSEARCH_API_KEY (US/UK etc.) and/or JOOBLE_API_KEY (Ireland + more) to .env.local — see README.",
+          "AI discovery isn't configured. Add a free SERPAPI_API_KEY (Google Jobs, best coverage) to .env.local — see README.",
         setup: true,
       },
       { status: 501 },
@@ -580,11 +696,24 @@ export async function POST(req: Request) {
 
   try {
     let result;
-    if (hasJSearch || hasJooble) {
-      // JSearch (Google for Jobs) is best where it has coverage; Jooble covers
-      // Ireland and many countries JSearch misses. Use JSearch first, then fall
-      // back to Jooble when JSearch returns nothing.
-      if (hasJSearch) {
+    if (hasSerp || hasJSearch || hasJooble) {
+      // Try each real-listings source in order, falling through when one is
+      // empty: SerpApi (Google Jobs, best coverage incl. Ireland) -> JSearch
+      // (Google for Jobs, US/UK/etc.) -> Jooble (aggregator).
+      if (hasSerp) {
+        try {
+          result = await discoverWithSerpApi(
+            roles,
+            location,
+            keywords,
+            country,
+            count,
+          );
+        } catch (e) {
+          if (!hasJSearch && !hasJooble) throw e;
+        }
+      }
+      if ((!result || result.postings.length === 0) && hasJSearch) {
         try {
           result = await discoverWithJSearch(
             roles,
@@ -640,7 +769,11 @@ export async function POST(req: Request) {
     console.error("discover failed:", err);
     const raw = err instanceof Error ? err.message : "";
     let message = "The discovery agent hit an error. Please try again.";
-    if (/jsearch: invalid/i.test(raw))
+    if (/serpapi: invalid/i.test(raw))
+      message = "Your SerpApi key looks invalid — check SERPAPI_API_KEY.";
+    else if (/serpapi: quota/i.test(raw))
+      message = "SerpApi monthly search quota reached. It resets next month.";
+    else if (/jsearch: invalid/i.test(raw))
       message = "Your JSearch API key looks invalid — check JSEARCH_API_KEY.";
     else if (/jsearch: quota/i.test(raw))
       message = "JSearch monthly request quota reached. It resets next month.";

@@ -14,6 +14,30 @@ import { TagInput } from "@/components/TagInput";
 
 const CRITERIA_KEY = "jobapp.discover.v1";
 
+const COUNTRIES: { code: string; name: string }[] = [
+  { code: "us", name: "United States" },
+  { code: "ie", name: "Ireland" },
+  { code: "gb", name: "United Kingdom" },
+  { code: "ca", name: "Canada" },
+  { code: "au", name: "Australia" },
+  { code: "de", name: "Germany" },
+  { code: "fr", name: "France" },
+  { code: "nl", name: "Netherlands" },
+  { code: "es", name: "Spain" },
+  { code: "it", name: "Italy" },
+  { code: "se", name: "Sweden" },
+  { code: "ch", name: "Switzerland" },
+  { code: "pl", name: "Poland" },
+  { code: "nz", name: "New Zealand" },
+  { code: "in", name: "India" },
+  { code: "sg", name: "Singapore" },
+  { code: "ae", name: "United Arab Emirates" },
+  { code: "za", name: "South Africa" },
+  { code: "br", name: "Brazil" },
+  { code: "mx", name: "Mexico" },
+  { code: "jp", name: "Japan" },
+];
+
 const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100";
 const labelCls =
@@ -24,6 +48,7 @@ export default function DiscoverPage() {
 
   const [roles, setRoles] = useState<string[]>([]);
   const [location, setLocation] = useState("");
+  const [country, setCountry] = useState("us");
   const [keywords, setKeywords] = useState<string[]>([]);
   const [workMode, setWorkMode] = useState<WorkMode | "any">("any");
   const [count, setCount] = useState(8);
@@ -62,6 +87,7 @@ export default function DiscoverPage() {
               : [];
         setRoles(toArr(c.roles ?? c.role));
         setLocation(c.location ?? "");
+        setCountry(c.country ?? "us");
         setKeywords(toArr(c.keywords));
         setWorkMode(c.workMode ?? "any");
         setCount(c.count ?? 8);
@@ -81,7 +107,7 @@ export default function DiscoverPage() {
     try {
       window.localStorage.setItem(
         CRITERIA_KEY,
-        JSON.stringify({ roles: r, location, keywords: k, workMode, count }),
+        JSON.stringify({ roles: r, location, country, keywords: k, workMode, count }),
       );
     } catch {
       /* ignore */
@@ -118,6 +144,7 @@ export default function DiscoverPage() {
         body: JSON.stringify({
           roles: effRoles,
           location,
+          country,
           keywords: effKeywords,
           workMode,
           count,
@@ -186,8 +213,9 @@ export default function DiscoverPage() {
             </span>
           </h1>
           <p className="mt-2 text-base text-slate-500 dark:text-slate-400">
-            The agent searches across the web for open internships matching your
-            role and location, then adds the ones you pick to your tracker.
+            Pulls live internship listings from across the web (via Google for
+            Jobs) for your roles and location — add the ones you want to your
+            tracker.
           </p>
         </div>
 
@@ -212,14 +240,30 @@ export default function DiscoverPage() {
                 autoFocus
               />
             </div>
-            <div>
-              <label className={labelCls}>Location</label>
-              <input
-                className={inputCls}
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="Seattle, WA · Remote · UK"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Location</label>
+                <input
+                  className={inputCls}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Limerick · Seattle · Remote"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Country</label>
+                <select
+                  className={inputCls}
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                >
+                  {COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="sm:col-span-2">
               <label className={labelCls}>
@@ -293,7 +337,7 @@ export default function DiscoverPage() {
             </button>
             {loading && (
               <span className="text-xs text-slate-400">
-                This can take 15–30 seconds.
+                Fetching live listings…
               </span>
             )}
           </div>
@@ -308,18 +352,17 @@ export default function DiscoverPage() {
             {setupNeeded && (
               <div className="mt-2 text-slate-500 dark:text-slate-400">
                 <p>
-                  For free AI discovery, add two free keys to{" "}
+                  Add a free JSearch key to{" "}
                   <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">
                     .env.local
-                  </code>
-                  :
+                  </code>{" "}
+                  (real job listings, 200 searches/month, no card):
                 </p>
                 <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs dark:bg-slate-800">
 {`# .env.local
-TAVILY_API_KEY=your_key            # app.tavily.com
-GOOGLE_GENERATIVE_AI_API_KEY=your_key   # aistudio.google.com/apikey`}
+JSEARCH_API_KEY=your_key   # openwebninja.com/api/jsearch`}
                 </pre>
-                <p className="mt-2">Both are free, then restart the dev server.</p>
+                <p className="mt-2">Then restart the dev server.</p>
               </div>
             )}
           </div>

@@ -51,6 +51,117 @@ function normalize(raw: RawPosting[]): DiscoveredPosting[] {
   }));
 }
 
+// ---- Primary source: JSearch (real-time Google for Jobs data) --------------
+
+const JSEARCH_URL = "https://api.openwebninja.com/jsearch/search-v2";
+
+interface JSearchJob {
+  job_id?: string;
+  job_title?: string;
+  employer_name?: string;
+  job_publisher?: string;
+  job_apply_link?: string;
+  job_google_link?: string;
+  job_location?: string;
+  job_city?: string;
+  job_state?: string;
+  job_country?: string;
+  job_is_remote?: boolean;
+  job_min_salary?: number;
+  job_max_salary?: number;
+  job_salary_period?: string;
+  job_salary_currency?: string;
+  job_description?: string;
+  apply_options?: { publisher?: string; apply_link?: string }[];
+}
+
+function fmtSalary(j: JSearchJob): string {
+  if (!j.job_min_salary && !j.job_max_salary) return "";
+  const cur = j.job_salary_currency ? j.job_salary_currency + " " : "";
+  const per = j.job_salary_period ? `/${j.job_salary_period.toLowerCase()}` : "";
+  if (j.job_min_salary && j.job_max_salary)
+    return `${cur}${j.job_min_salary}–${j.job_max_salary}${per}`;
+  return `${cur}${j.job_min_salary ?? j.job_max_salary}${per}`;
+}
+
+function mapJSearchJob(j: JSearchJob): DiscoveredPosting {
+  const loc =
+    j.job_location ||
+    [j.job_city, j.job_state, j.job_country].filter(Boolean).join(", ");
+  return {
+    company: j.employer_name || "Unknown",
+    role: j.job_title || "",
+    location: loc || "",
+    workMode: j.job_is_remote ? "remote" : null,
+    url: j.job_apply_link || j.job_google_link || "",
+    salary: fmtSalary(j),
+    source:
+      (Array.isArray(j.apply_options) && j.apply_options[0]?.publisher) ||
+      j.job_publisher ||
+      "Google Jobs",
+    summary: (j.job_description || "").replace(/\s+/g, " ").trim().slice(0, 180),
+  };
+}
+
+async function discoverWithJSearch(
+  roles: string[],
+  location: string,
+  keywords: string,
+  country: string,
+  count: number,
+) {
+  async function one(role: string) {
+    const parts = [role, "intern", keywords].filter(Boolean).join(" ");
+    const query = location ? `${parts} in ${location}` : parts;
+    const url = new URL(JSEARCH_URL);
+    url.searchParams.set("query", query);
+    if (country) url.searchParams.set("country", country);
+    url.searchParams.set("date_posted", "month");
+
+    const res = await fetch(url, {
+      headers: { "x-api-key": process.env.JSEARCH_API_KEY as string },
+    });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403)
+        throw new Error("JSearch: invalid api key");
+      if (res.status === 429) throw new Error("JSearch: quota exceeded");
+      throw new Error(`JSearch failed (${res.status})`);
+    }
+    const data = (await res.json()) as { data?: JSearchJob[] };
+    return Array.isArray(data?.data) ? data.data : [];
+  }
+
+  const settled = await Promise.allSettled(roles.map(one));
+  const fulfilled = settled.filter(
+    (s): s is PromiseFulfilledResult<JSearchJob[]> => s.status === "fulfilled",
+  );
+  if (fulfilled.length === 0) {
+    const rej = settled.find((s) => s.status === "rejected");
+    throw rej && rej.status === "rejected"
+      ? rej.reason
+      : new Error("JSearch failed");
+  }
+
+  // Dedupe by job id / apply link across roles.
+  const seen = new Set<string>();
+  const jobs: JSearchJob[] = [];
+  for (const j of fulfilled.flatMap((s) => s.value)) {
+    const key = j.job_id || j.job_apply_link || "";
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    jobs.push(j);
+  }
+
+  const mapped = jobs.map(mapJSearchJob);
+  // Prefer clearly-internship roles, but keep everything if that leaves nothing.
+  const interns = mapped.filter((p) => /intern|placement|co-?op/i.test(p.role));
+  const chosen = (interns.length > 0 ? interns : mapped).slice(0, count);
+  const sources = Array.from(new Set(chosen.map((p) => p.url).filter(Boolean)));
+  return { postings: chosen, sources };
+}
+
+// ---- Fallback source: general web search (Tavily) + LLM structuring --------
+
 function structurePrompt(
   roles: string[],
   location: string,
@@ -310,6 +421,7 @@ function toStringArray(v: unknown): string[] {
 }
 
 export async function POST(req: Request) {
+  const hasJSearch = Boolean(process.env.JSEARCH_API_KEY);
   const hasGoogle = Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   const hasTavily = Boolean(process.env.TAVILY_API_KEY);
   const hasGateway = Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL);
@@ -323,16 +435,21 @@ export async function POST(req: Request) {
 
   const useTavily = hasTavily && Boolean(tavilyStructureModel);
 
-  if (!useTavily && !useGrounding && !hasGateway) {
-    const error = hasGoogle
-      ? "Almost there — you have a Gemini key. Add a free TAVILY_API_KEY (web search) to .env.local and restart. A Gemini key alone can't search the web without enabling billing."
-      : "AI is not configured. Add a free TAVILY_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY to .env.local — see README.";
-    return NextResponse.json({ error, setup: true }, { status: 501 });
+  if (!hasJSearch && !useTavily && !useGrounding && !hasGateway) {
+    return NextResponse.json(
+      {
+        error:
+          "AI discovery isn't configured. Add a free JSEARCH_API_KEY (real job listings) to .env.local — see README.",
+        setup: true,
+      },
+      { status: 501 },
+    );
   }
 
   let roles: string[] = [];
   let location = "";
   let keywords = "";
+  let country = "";
   let workMode = "any";
   let count = 8;
   try {
@@ -340,6 +457,10 @@ export async function POST(req: Request) {
     roles = toStringArray(body.roles ?? body.role).slice(0, MAX_ROLES);
     location = String(body.location ?? "").trim();
     keywords = toStringArray(body.keywords).join(", ").slice(0, 160);
+    country = String(body.country ?? "")
+      .trim()
+      .toLowerCase()
+      .slice(0, 2);
     workMode = ["onsite", "remote", "hybrid"].includes(body.workMode)
       ? body.workMode
       : "any";
@@ -360,7 +481,15 @@ export async function POST(req: Request) {
 
   try {
     let result;
-    if (useTavily && tavilyStructureModel) {
+    if (hasJSearch) {
+      result = await discoverWithJSearch(
+        roles,
+        location,
+        keywords,
+        country,
+        count,
+      );
+    } else if (useTavily && tavilyStructureModel) {
       result = await discoverWithTavily(
         roles,
         location,
@@ -393,7 +522,11 @@ export async function POST(req: Request) {
     console.error("discover failed:", err);
     const raw = err instanceof Error ? err.message : "";
     let message = "The discovery agent hit an error. Please try again.";
-    if (/tavily: invalid/i.test(raw))
+    if (/jsearch: invalid/i.test(raw))
+      message = "Your JSearch API key looks invalid — check JSEARCH_API_KEY.";
+    else if (/jsearch: quota/i.test(raw))
+      message = "JSearch monthly request quota reached. It resets next month.";
+    else if (/tavily: invalid/i.test(raw))
       message = "Your Tavily API key looks invalid — check TAVILY_API_KEY.";
     else if (/tavily: quota/i.test(raw))
       message = "Tavily monthly search quota reached. It resets next month.";

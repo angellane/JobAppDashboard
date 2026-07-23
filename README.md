@@ -28,35 +28,26 @@ launch — edit or delete them freely.
 
 ### AI features (Discover)
 
-The **Discover** page uses an AI agent to search the web for open internships.
-Add an API key to `.env.local`:
+The **Discover** page pulls real internship listings from **Google for Jobs**
+(via the JSearch API) — structured, current, filtered by role, location, and
+country. Add the key to `.env.local`:
 
 ```bash
-cp .env.example .env.local   # then add ONE key
-```
-
-**Option A — fully free (recommended).** Web search via **Tavily** + structuring
-via **Google Gemini**. Both keys are free and need no credit card:
-
-```bash
+cp .env.example .env.local
 # .env.local
-TAVILY_API_KEY=your_tavily_key            # https://app.tavily.com (1,000 searches/mo)
-GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_key   # https://aistudio.google.com/apikey
+JSEARCH_API_KEY=your_key
 ```
 
-**Option B — Vercel AI Gateway (fallback, usage-billed).** Perplexity Sonar +
-Claude; used only if the free keys above aren't set:
+Get a free key at **https://www.openwebninja.com/api/jsearch** — 200 requests/
+month, **no credit card**. Restart `npm run dev` after adding it.
 
-```bash
-# .env.local
-AI_GATEWAY_API_KEY=your_key_here
-```
+Each Discover run uses one request per role. Pick the **Country** in the form so
+results are geo-filtered correctly (e.g. Ireland for Limerick).
 
-Restart `npm run dev` after adding keys.
-
-> Note: a Gemini key **alone** can search the web only if you enable billing on
-> the Google Cloud project — Google Search grounding is not on the pure free tier.
-> That's why the free path pairs Gemini with Tavily for search.
+> Fallbacks: if no `JSEARCH_API_KEY` is set, Discover falls back to a general
+> web-search approach (`TAVILY_API_KEY` + `GOOGLE_GENERATIVE_AI_API_KEY`, or
+> `AI_GATEWAY_API_KEY`). These are far less reliable for job search and are not
+> recommended.
 
 ## Scripts
 

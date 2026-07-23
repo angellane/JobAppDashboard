@@ -51,6 +51,21 @@ function normalize(raw: RawPosting[]): DiscoveredPosting[] {
   }));
 }
 
+/** Dedupe postings by normalised company + role (same job via different boards). */
+function dedupePostings(list: DiscoveredPosting[]): DiscoveredPosting[] {
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
+  const seen = new Set<string>();
+  const out: DiscoveredPosting[] = [];
+  for (const p of list) {
+    const key = `${norm(p.company)}|${norm(p.role)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
 // ---- Primary source: SerpApi (Google for Jobs, accurate location) ----------
 
 const SERPAPI_URL = "https://serpapi.com/search.json";
@@ -178,18 +193,10 @@ async function discoverWithSerpApi(
       : new Error("SerpApi failed");
   }
 
-  const seen = new Set<string>();
-  const jobs: SerpJob[] = [];
-  for (const j of fulfilled.flatMap((s) => s.value)) {
-    const key = j.job_id || `${j.company_name}|${j.title}`;
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    jobs.push(j);
-  }
-
+  const jobs = fulfilled.flatMap((s) => s.value);
   const interns = jobs.filter(isInternship);
-  const chosen = (interns.length > 0 ? interns : jobs).slice(0, count);
-  const postings = chosen.map(mapSerpJob);
+  const pool = interns.length > 0 ? interns : jobs;
+  const postings = dedupePostings(pool.map(mapSerpJob)).slice(0, count);
   const sources = Array.from(new Set(postings.map((p) => p.url).filter(Boolean)));
   return { postings, sources };
 }
@@ -298,7 +305,10 @@ async function discoverWithJSearch(
   const mapped = jobs.map(mapJSearchJob);
   // Prefer clearly-internship roles, but keep everything if that leaves nothing.
   const interns = mapped.filter((p) => /intern|placement|co-?op/i.test(p.role));
-  const chosen = (interns.length > 0 ? interns : mapped).slice(0, count);
+  const chosen = dedupePostings(interns.length > 0 ? interns : mapped).slice(
+    0,
+    count,
+  );
   const sources = Array.from(new Set(chosen.map((p) => p.url).filter(Boolean)));
   return { postings: chosen, sources };
 }
@@ -395,7 +405,10 @@ async function discoverWithJooble(
   const interns = mapped.filter((p) =>
     /intern|placement|co-?op|trainee/i.test(p.role),
   );
-  const chosen = (interns.length > 0 ? interns : mapped).slice(0, count);
+  const chosen = dedupePostings(interns.length > 0 ? interns : mapped).slice(
+    0,
+    count,
+  );
   const sources = Array.from(new Set(chosen.map((p) => p.url).filter(Boolean)));
   return { postings: chosen, sources };
 }

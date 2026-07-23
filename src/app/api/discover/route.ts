@@ -305,9 +305,6 @@ async function discoverWithJSearch(
 
 // ---- Source: Jooble (job aggregator; covers Ireland and 60+ countries) -----
 
-// Jooble uses country subdomains; a few differ from ISO codes.
-const JOOBLE_HOST_OVERRIDE: Record<string, string> = { gb: "uk" };
-
 interface JoobleJob {
   title?: string;
   location?: string;
@@ -346,9 +343,11 @@ async function discoverWithJooble(
   country: string,
   count: number,
 ) {
-  const sub = country ? JOOBLE_HOST_OVERRIDE[country] || country : "";
-  const host = sub ? `https://${sub}.jooble.org` : "https://jooble.org";
-  const endpoint = `${host}/api/${process.env.JOOBLE_API_KEY}`;
+  // Jooble's API only works on the main host; country subdomains return 403.
+  const endpoint = `https://jooble.org/api/${process.env.JOOBLE_API_KEY}`;
+  // Disambiguate the location (bare city can geolocate to the wrong country).
+  const countryName = COUNTRY_NAMES[country] || "";
+  const joobleLocation = [location, countryName].filter(Boolean).join(", ");
 
   async function one(role: string) {
     const keywordStr = [role, "intern", keywords].filter(Boolean).join(" ");
@@ -357,7 +356,7 @@ async function discoverWithJooble(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         keywords: keywordStr,
-        location,
+        location: joobleLocation,
         ResultOnPage: Math.min(count * 2, 20),
       }),
     });
